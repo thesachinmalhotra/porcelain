@@ -114,7 +114,7 @@ export const getPipelineWorkspace = createServerFn({ method: "GET" }).handler(as
 )
 
 export const createPipeline = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => input)
+  .validator((input: unknown) => input)
   .handler(async ({ data }) => {
     const pipeline = await createPipelineCommand({
       lifecycle: createLifecycle({ store: createPipelineStore(), client: connectClient() }),
@@ -124,7 +124,7 @@ export const createPipeline = createServerFn({ method: "POST" })
   })
 
 export const updatePipeline = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => input)
+  .validator((input: unknown) => input)
   .handler(async ({ data }) => {
     const input = data as { id: string; update: Omit<PipelineDefinition, "id"> }
     const pipeline = await updatePipelineCommand({
@@ -136,10 +136,11 @@ export const updatePipeline = createServerFn({ method: "POST" })
   })
 
 export const deletePipeline = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => input)
+  .validator((input: unknown) => input)
   .handler(async ({ data }) => {
     await deletePipelineCommand({
       lifecycle: createLifecycle({ store: createPipelineStore(), client: connectClient() }),
       id: (data as { id: string }).id,
     })
   })
+
