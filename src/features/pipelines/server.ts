@@ -1,6 +1,8 @@
-﻿import { createServerFn } from "@tanstack/react-start"
+import { createServerFn } from "@tanstack/react-start"
 import { pipelineSummaryFromConnectStream, pipelineSummaryFromDefinition } from "../../pipeline/pipeline"
 import { createPipelineLifecycle } from "../../pipeline/lifecycle"
+import { createAuthoredPipeline, updateAuthoredPipeline } from "../../pipeline/authoring-lifecycle"
+import type { PipelineAuthoring } from "../../pipeline/authoring"
 import { createPipelineStore } from "../../pipeline/store"
 import { createConnectClient } from "../../runtime/connect/client"
 import type { PipelineDefinition } from "../../pipeline/store"
@@ -74,6 +76,29 @@ function createLifecycle({ store, client }: PipelineCommandDependencies): Pipeli
   return createPipelineLifecycle({ store, client })
 }
 
+export async function createAuthoredPipelineCommand({
+  lifecycle,
+  authoring,
+}: {
+  lifecycle: Pick<PipelineLifecycle, "createPipeline">
+  authoring: PipelineAuthoring
+}) {
+  return createAuthoredPipeline({ lifecycle, authoring })
+}
+
+export async function updateAuthoredPipelineCommand({
+  lifecycle,
+  id,
+  existing,
+  authoring,
+}: {
+  lifecycle: Pick<PipelineLifecycle, "updatePipeline">
+  id: string
+  existing: PipelineDefinition
+  authoring: PipelineAuthoring
+}) {
+  return updateAuthoredPipeline({ lifecycle, id, existing, authoring })
+}
 export async function createPipelineCommand({
   lifecycle,
   definition,
@@ -142,5 +167,29 @@ export const deletePipeline = createServerFn({ method: "POST" })
       lifecycle: createLifecycle({ store: createPipelineStore(), client: connectClient() }),
       id: (data as { id: string }).id,
     })
+  })
+
+
+export const createAuthoredPipelineServer = createServerFn({ method: "POST" })
+  .validator((input: unknown) => input)
+  .handler(async ({ data }) => {
+    const pipeline = await createAuthoredPipelineCommand({
+      lifecycle: createLifecycle({ store: createPipelineStore(), client: connectClient() }),
+      authoring: data as PipelineAuthoring,
+    })
+    return pipeline.id
+  })
+
+export const updateAuthoredPipelineServer = createServerFn({ method: "POST" })
+  .validator((input: unknown) => input)
+  .handler(async ({ data }) => {
+    const input = data as { id: string; existing: PipelineDefinition; authoring: PipelineAuthoring }
+    const pipeline = await updateAuthoredPipelineCommand({
+      lifecycle: createLifecycle({ store: createPipelineStore(), client: connectClient() }),
+      id: input.id,
+      existing: input.existing,
+      authoring: input.authoring,
+    })
+    return pipeline.id
   })
 
