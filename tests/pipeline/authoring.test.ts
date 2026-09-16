@@ -43,7 +43,7 @@ describe("pipeline authoring", () => {
     expect(() => validatePipelineAuthoring({
       id: "orders",
       name: "Orders",
-      input: "generate",
+      input: "generate" as unknown as Record<string, unknown>,
       output: { drop: {} },
     })).toThrow("Pipeline input must be an object")
   })
