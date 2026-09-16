@@ -117,4 +117,18 @@ describe("pipeline lifecycle failure semantics", () => {
     expect(calls).toEqual(["store.get:orders", "connect.delete:orders-runtime"])
     await expect(store.get("orders")).resolves.toEqual(definition)
   })
-})
+
+  it("rejects update when the durable pipeline does not exist", async () => {
+    const { calls, store, client, setStored } = createFakes(); setStored(null)
+    const lifecycle = createPipelineLifecycle({ store, client })
+    await expect(lifecycle.updatePipeline("missing", { ...definition })).rejects.toThrow("Pipeline not found: missing")
+    expect(calls).toEqual(["store.get:missing"])
+  })
+
+  it("rejects delete when the durable pipeline does not exist", async () => {
+    const { calls, store, client, setStored } = createFakes(); setStored(null)
+    const lifecycle = createPipelineLifecycle({ store, client })
+    await expect(lifecycle.deletePipeline("missing")).rejects.toThrow("Pipeline not found: missing")
+    expect(calls).toEqual(["store.get:missing"])
+  })})
+
