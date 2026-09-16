@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+﻿import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 
 export type PipelineMetadata = Record<string, unknown>
@@ -69,5 +69,16 @@ export function createPipelineStore(filePath = resolve(process.cwd(), ".porcelai
       await writeState(state)
       return updated
     },
+    async delete(id: string): Promise<void> {
+      const state = await readState()
+      const index = state.pipelines.findIndex((pipeline) => pipeline.id === id)
+      if (index === -1) {
+        throw new Error("Pipeline not found: " + id)
+      }
+
+      state.pipelines.splice(index, 1)
+      await writeState(state)
+    },
   }
 }
+

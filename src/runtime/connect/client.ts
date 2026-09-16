@@ -1,4 +1,4 @@
-export type ConnectStream = {
+﻿export type ConnectStream = {
   active: boolean
   uptime: number
   uptime_str: string
@@ -10,6 +10,16 @@ export type JsonValue = string | number | boolean | null | JsonObject | JsonValu
 export type JsonObject = { [key: string]: JsonValue }
 export type ConnectStreamStats = JsonObject
 export type ConnectStreamConfig = Record<string, unknown>
+
+export class ConnectRequestError extends Error {
+  readonly status: number
+
+  constructor(method: string, path: string, status: number) {
+    super("Connect request failed: " + method + " " + path + " (" + status + ")")
+    this.name = "ConnectRequestError"
+    this.status = status
+  }
+}
 
 type FetchLike = typeof fetch
 
@@ -25,7 +35,7 @@ export function createConnectClient(options: ConnectClientOptions) {
   async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await request(baseUrl + path, init)
     if (!response.ok) {
-      throw new Error("Connect request failed: " + (init?.method ?? "GET") + " " + path + " (" + response.status + ")")
+      throw new ConnectRequestError(init?.method ?? "GET", path, response.status)
     }
     return (await response.json()) as T
   }
@@ -33,7 +43,7 @@ export function createConnectClient(options: ConnectClientOptions) {
   async function requestNoContent(path: string, init: RequestInit): Promise<void> {
     const response = await request(baseUrl + path, init)
     if (!response.ok) {
-      throw new Error("Connect request failed: " + (init.method ?? "GET") + " " + path + " (" + response.status + ")")
+      throw new ConnectRequestError(init.method ?? "GET", path, response.status)
     }
   }
 
@@ -88,3 +98,5 @@ export function createConnectClient(options: ConnectClientOptions) {
     },
   }
 }
+
+
