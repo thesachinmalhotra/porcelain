@@ -1,4 +1,4 @@
-﻿# Pipeline Authoring Boundary Design
+# Pipeline Authoring Boundary Design
 
 **Date:** 2026-09-16
 
@@ -98,7 +98,7 @@ Authoring must not bypass those guarantees.
 1. Deterministic mapping from authoring definition to Connect config.
 2. Structural validation failures.
 3. Authoring operation delegates the mapped config to lifecycle and persists the resulting durable definition.
-4. Real Connect integration: create an authored `generate -> bloblang -> drop` pipeline, read it back from Connect, update its config, observe the changed config, then delete it.
+4. Real Connect integration: create an authored `generate -> mapping -> drop` pipeline, read it back from Connect, update its config, observe the changed config, then delete it.
 5. Existing test suite, typecheck, production build, and diff checks remain green.
 
 ## Explicit Non-Goals
@@ -116,4 +116,4 @@ Authoring must not bypass those guarantees.
 
 ## Exit Criterion
 
-A Porcelain caller can express a minimal pipeline without hand-building the Connect `pipeline` wrapper, create it through the existing lifecycle boundary, observe the real stream, update it, and delete it. At that point backend architecture stops and UI/UX work can begin.
+A Porcelain caller (including a server/UI caller) can express a minimal pipeline without hand-building the Connect `pipeline` wrapper, create it through the existing lifecycle boundary, observe the real stream, update it, and delete it. At that point backend architecture stops and UI/UX work can begin.

@@ -1,4 +1,4 @@
-﻿# Pipeline Authoring Boundary Implementation Plan
+# Pipeline Authoring Boundary Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -15,7 +15,7 @@
 - `PipelineDefinition.desiredConfig` remains the persisted Connect-native configuration.
 - Connect remains authoritative for component-specific configuration validation.
 - Authoring does not call Connect directly; lifecycle remains the runtime boundary.
-- The initial executable vocabulary is `generate` input, `bloblang` processor, and `drop` output.
+- The initial executable vocabulary is `generate` input, `mapping` processor, and `drop` output.
 - Do not add a compiler, IR, custom DSL, component catalogue, reconciliation loop, SQLite migration, resources layer, or schema-driven UI.
 - Create/update/delete ordering from Slice #4 must remain unchanged.
 
@@ -42,14 +42,14 @@ describe("pipeline authoring", () => {
     expect(authoringToConnectConfig({
       id: "orders",
       name: "Orders",
-      input: { generate: { interval: "1s" } },
+      input: { generate: { interval: "1s", mapping: "root = {}" } },
       buffer: { none: {} },
-      processors: [{ bloblang: "root = this" }],
+      processors: [{ mapping: "root = this" }],
       output: { drop: {} },
     })).toEqual({
-      input: { generate: { interval: "1s" } },
+      input: { generate: { interval: "1s", mapping: "root = {}" } },
       buffer: { none: {} },
-      pipeline: { processors: [{ bloblang: "root = this" }] },
+      pipeline: { processors: [{ mapping: "root = this" }] },
       output: { drop: {} },
     })
   })
@@ -58,10 +58,10 @@ describe("pipeline authoring", () => {
     expect(authoringToConnectConfig({
       id: "orders",
       name: "Orders",
-      input: { generate: { interval: "1s" } },
+      input: { generate: { interval: "1s", mapping: "root = {}" } },
       output: { drop: {} },
     })).toEqual({
-      input: { generate: { interval: "1s" } },
+      input: { generate: { interval: "1s", mapping: "root = {}" } },
       output: { drop: {} },
     })
   })
@@ -175,14 +175,14 @@ it("creates a durable definition through lifecycle with mapped Connect config", 
       id: "orders",
       name: "Orders",
       metadata: { owner: "platform" },
-      input: { generate: { interval: "1s" } },
-      processors: [{ bloblang: "root = this" }],
+      input: { generate: { interval: "1s", mapping: "root = {}" } },
+      processors: [{ mapping: "root = this" }],
       output: { drop: {} },
     },
   })
   expect(result.desiredConfig).toEqual({
-    input: { generate: { interval: "1s" } },
-    pipeline: { processors: [{ bloblang: "root = this" }] },
+    input: { generate: { interval: "1s", mapping: "root = {}" } },
+    pipeline: { processors: [{ mapping: "root = this" }] },
     output: { drop: {} },
   })
   expect(calls).toHaveLength(1)
@@ -203,13 +203,13 @@ it("updates through lifecycle and replaces only the desired config", async () =>
       id: "orders",
       name: "Orders",
       metadata: { owner: "platform" },
-      desiredConfig: { input: { generate: { interval: "1s" } }, output: { drop: {} } },
+      desiredConfig: { input: { generate: { interval: "1s", mapping: "root = {}" } }, output: { drop: {} } },
       connectStreamId: "orders",
     },
     authoring: {
       id: "orders",
       name: "Orders v2",
-      input: { generate: { interval: "2s" } },
+      input: { generate: { interval: "2s", mapping: "root = {}" } },
       output: { drop: {} },
     },
   })
@@ -218,7 +218,7 @@ it("updates through lifecycle and replaces only the desired config", async () =>
     update: {
       name: "Orders v2",
       metadata: {},
-      desiredConfig: { input: { generate: { interval: "2s" } }, output: { drop: {} } },
+      desiredConfig: { input: { generate: { interval: "2s", mapping: "root = {}" } }, output: { drop: {} } },
       connectStreamId: "orders",
     },
   })
@@ -246,7 +246,42 @@ git add src/pipeline/authoring-lifecycle.ts tests/pipeline/authoring-lifecycle.t
 git commit -m "feat: connect authoring to pipeline lifecycle"
 ```
 
-### Task 3: Add real Connect authoring smoke coverage
+### Task 3: Expose the authoring boundary to server callers
+
+**Files:**
+- Modify: `src/features/pipelines/server.ts`
+- Create: `tests/features/pipelines/authoring-server.test.ts`
+
+**Interfaces:**
+- Consumes: `createAuthoredPipeline` and `updateAuthoredPipeline`.
+- Produces: `createAuthoredPipelineCommand`, `updateAuthoredPipelineCommand`, `createAuthoredPipelineServer`, and `updateAuthoredPipelineServer` so UI code never constructs Connect-native stream wrappers.
+
+- [ ] **Step 1: Write the failing delegation tests**
+
+Use the server command tests to assert authored create/update delegate to the authoring lifecycle with the mapped config.
+
+- [ ] **Step 2: Run the focused tests and verify they fail**
+
+Run: `mise exec -- npm test -- tests/features/pipelines/authoring-server.test.ts`
+Expected: FAIL because the authored server commands do not exist.
+
+- [ ] **Step 3: Implement the server commands and server functions**
+
+Keep the existing raw lifecycle commands unchanged. Add authored server commands that delegate to the authoring lifecycle, and expose POST server functions using the current `.validator()` API.
+
+- [ ] **Step 4: Run the focused tests and verify they pass**
+
+Run: `mise exec -- npm test -- tests/features/pipelines/authoring-server.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/features/pipelines/server.ts tests/features/pipelines/authoring-server.test.ts
+git commit -m "feat: expose authored pipeline server boundary"
+```
+
+### Task 4: Add real Connect authoring smoke coverage
 
 **Files:**
 - Create: `tests/pipeline/authoring-connect.smoke.test.ts`
@@ -263,9 +298,9 @@ The test must:
 1. Create a temporary file-backed pipeline store.
 2. Construct the real Connect client using `PORCELAIN_CONNECT_URL ?? http://127.0.0.1:4195`.
 3. Assert `/ready` is true.
-4. Author `generate -> bloblang -> drop` with `interval: "1s"`.
+4. Author `generate -> mapping -> drop` with `interval: "1s"`.
 5. Create it through `createAuthoredPipeline`.
-6. Read the stream using `getStream` and assert its config contains `input.generate`, `pipeline.processors[0].bloblang`, and `output.drop`.
+6. Read the stream using `getStream` and assert its config contains `input.generate`, `pipeline.processors[0].mapping`, and `output.drop`.
 7. Author an update with `interval: "2s"` and update it through `updateAuthoredPipeline`.
 8. Read the stream again and assert the interval is `2s`.
 9. Delete through the existing lifecycle service and assert `getStream` rejects with status 404.
@@ -286,7 +321,7 @@ git add tests/pipeline/authoring-connect.smoke.test.ts
 git commit -m "test: verify authored pipelines against connect"
 ```
 
-### Task 4: Full verification and final cleanup
+### Task 5: Full verification and final cleanup
 
 **Files:**
 - Modify: none unless verification exposes a real defect.

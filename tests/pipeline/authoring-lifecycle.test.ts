@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vitest"
 import type { PipelineDefinition } from "../../src/pipeline/store"
 import { createAuthoredPipeline, updateAuthoredPipeline } from "../../src/pipeline/authoring-lifecycle"
 
@@ -17,14 +17,14 @@ describe("authored pipeline lifecycle", () => {
         id: "orders",
         name: "Orders",
         metadata: { owner: "platform" },
-        input: { generate: { interval: "1s" } },
-        processors: [{ bloblang: "root = this" }],
+        input: { generate: { interval: "1s", mapping: "root = {}" } },
+        processors: [{ mapping: "root = this" }],
         output: { drop: {} },
       },
     })
     expect(result.desiredConfig).toEqual({
-      input: { generate: { interval: "1s" } },
-      pipeline: { processors: [{ bloblang: "root = this" }] },
+      input: { generate: { interval: "1s", mapping: "root = {}" } },
+      pipeline: { processors: [{ mapping: "root = this" }] },
       output: { drop: {} },
     })
     expect(result.connectStreamId).toBeNull()
@@ -43,7 +43,7 @@ describe("authored pipeline lifecycle", () => {
       id: "orders",
       name: "Orders",
       metadata: { owner: "platform" },
-      desiredConfig: { input: { generate: { interval: "1s" } }, output: { drop: {} } },
+      desiredConfig: { input: { generate: { interval: "1s", mapping: "root = {}" } }, output: { drop: {} } },
       connectStreamId: "orders",
     }
     await updateAuthoredPipeline({
@@ -53,7 +53,7 @@ describe("authored pipeline lifecycle", () => {
       authoring: {
         id: "orders",
         name: "Orders v2",
-        input: { generate: { interval: "2s" } },
+        input: { generate: { interval: "2s", mapping: "root = {}" } },
         output: { drop: {} },
       },
     })
@@ -62,7 +62,7 @@ describe("authored pipeline lifecycle", () => {
       update: {
         name: "Orders v2",
         metadata: {},
-        desiredConfig: { input: { generate: { interval: "2s" } }, output: { drop: {} } },
+        desiredConfig: { input: { generate: { interval: "2s", mapping: "root = {}" } }, output: { drop: {} } },
         connectStreamId: "orders",
       },
     })

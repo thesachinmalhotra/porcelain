@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vitest"
 import { authoringToConnectConfig, validatePipelineAuthoring } from "../../src/pipeline/authoring"
 
 describe("pipeline authoring", () => {
@@ -6,14 +6,14 @@ describe("pipeline authoring", () => {
     expect(authoringToConnectConfig({
       id: "orders",
       name: "Orders",
-      input: { generate: { interval: "1s" } },
+      input: { generate: { interval: "1s", mapping: "root = {}" } },
       buffer: { none: {} },
-      processors: [{ bloblang: "root = this" }],
+      processors: [{ mapping: "root = this" }],
       output: { drop: {} },
     })).toEqual({
-      input: { generate: { interval: "1s" } },
+      input: { generate: { interval: "1s", mapping: "root = {}" } },
       buffer: { none: {} },
-      pipeline: { processors: [{ bloblang: "root = this" }] },
+      pipeline: { processors: [{ mapping: "root = this" }] },
       output: { drop: {} },
     })
   })
@@ -22,10 +22,10 @@ describe("pipeline authoring", () => {
     expect(authoringToConnectConfig({
       id: "orders",
       name: "Orders",
-      input: { generate: { interval: "1s" } },
+      input: { generate: { interval: "1s", mapping: "root = {}" } },
       output: { drop: {} },
     })).toEqual({
-      input: { generate: { interval: "1s" } },
+      input: { generate: { interval: "1s", mapping: "root = {}" } },
       output: { drop: {} },
     })
   })
