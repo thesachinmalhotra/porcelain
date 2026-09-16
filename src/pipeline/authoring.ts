@@ -1,4 +1,4 @@
-﻿export type PipelineAuthoring = {
+export type PipelineAuthoring = {
   id: string
   name: string
   metadata?: Record<string, unknown>

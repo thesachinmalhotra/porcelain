@@ -1,4 +1,4 @@
-﻿import type { PipelineDefinition } from "./store"
+import type { PipelineDefinition } from "./store"
 import { authoringToConnectConfig, validatePipelineAuthoring, type PipelineAuthoring } from "./authoring"
 
 type CreateLifecycle = {

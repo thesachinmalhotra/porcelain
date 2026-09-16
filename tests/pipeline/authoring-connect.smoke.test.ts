@@ -75,5 +75,3 @@ describe("authored pipeline against real Connect", () => {
     }
   }, 30_000)
 })
-
-
