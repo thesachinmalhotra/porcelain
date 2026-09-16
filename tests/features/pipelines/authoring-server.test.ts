@@ -29,25 +29,17 @@ describe("pipeline authoring server boundary", () => {
     })
   })
 
-  it("delegates authored update to the authoring lifecycle", async () => {
-    const calls: string[] = []
+  it("delegates authored update without accepting caller-supplied runtime state", async () => {
+    const calls: Array<{ id: string; update: Omit<PipelineDefinition, "id"> }> = []
     const lifecycle = {
       updatePipeline: async (id: string, update: Omit<PipelineDefinition, "id">) => {
-        calls.push(id)
+        calls.push({ id, update })
         return { id, ...update }
       },
-    }
-    const existing: PipelineDefinition = {
-      id: "orders",
-      name: "Orders",
-      metadata: {},
-      desiredConfig: {},
-      connectStreamId: "orders",
     }
     await expect(updateAuthoredPipelineCommand({
       lifecycle,
       id: "orders",
-      existing,
       authoring: {
         id: "orders",
         name: "Orders v2",
@@ -55,6 +47,7 @@ describe("pipeline authoring server boundary", () => {
         output: { drop: {} },
       },
     })).resolves.toMatchObject({ id: "orders", name: "Orders v2" })
-    expect(calls).toEqual(["orders"])
+    expect(calls).toHaveLength(1)
+    expect(calls[0].update.connectStreamId).toBeNull()
   })
 })

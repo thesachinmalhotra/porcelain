@@ -29,12 +29,10 @@ export async function createAuthoredPipeline({
 export async function updateAuthoredPipeline({
   lifecycle,
   id,
-  existing,
   authoring,
 }: {
   lifecycle: UpdateLifecycle
   id: string
-  existing: PipelineDefinition
   authoring: PipelineAuthoring
 }): Promise<PipelineDefinition> {
   validatePipelineAuthoring(authoring)
@@ -45,6 +43,6 @@ export async function updateAuthoredPipeline({
     name: authoring.name,
     metadata: authoring.metadata ?? {},
     desiredConfig: authoringToConnectConfig(authoring),
-    connectStreamId: existing.connectStreamId,
+    connectStreamId: null,
   })
 }

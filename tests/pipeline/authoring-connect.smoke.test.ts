@@ -39,13 +39,9 @@ describe("authored pipeline against real Connect", () => {
         output: { drop: {} },
       })
 
-      const existing = await store.get(id)
-      expect(existing).not.toBeNull()
-
       await updateAuthoredPipeline({
         lifecycle,
         id,
-        existing: existing!,
         authoring: {
           id,
           name: "Orders Authoring v2",

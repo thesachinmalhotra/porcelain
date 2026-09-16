@@ -31,7 +31,7 @@ describe("authored pipeline lifecycle", () => {
     expect(calls).toHaveLength(1)
   })
 
-  it("updates through lifecycle while preserving the existing stream id", async () => {
+  it("delegates updates without accepting a caller-supplied runtime stream id", async () => {
     let received: { id: string; update: Omit<PipelineDefinition, "id"> } | undefined
     const lifecycle = {
       updatePipeline: async (id: string, update: Omit<PipelineDefinition, "id">) => {
@@ -39,17 +39,9 @@ describe("authored pipeline lifecycle", () => {
         return { id, ...update }
       },
     }
-    const existing: PipelineDefinition = {
-      id: "orders",
-      name: "Orders",
-      metadata: { owner: "platform" },
-      desiredConfig: { input: { generate: { interval: "1s", mapping: "root = {}" } }, output: { drop: {} } },
-      connectStreamId: "orders",
-    }
     await updateAuthoredPipeline({
       lifecycle,
       id: "orders",
-      existing,
       authoring: {
         id: "orders",
         name: "Orders v2",
@@ -63,8 +55,7 @@ describe("authored pipeline lifecycle", () => {
         name: "Orders v2",
         metadata: {},
         desiredConfig: { input: { generate: { interval: "2s", mapping: "root = {}" } }, output: { drop: {} } },
-        connectStreamId: "orders",
+        connectStreamId: null,
       },
     })
-  })
-})
+  })})

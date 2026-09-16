@@ -89,15 +89,13 @@ export async function createAuthoredPipelineCommand({
 export async function updateAuthoredPipelineCommand({
   lifecycle,
   id,
-  existing,
   authoring,
 }: {
   lifecycle: Pick<PipelineLifecycle, "updatePipeline">
   id: string
-  existing: PipelineDefinition
   authoring: PipelineAuthoring
 }) {
-  return updateAuthoredPipeline({ lifecycle, id, existing, authoring })
+  return updateAuthoredPipeline({ lifecycle, id, authoring })
 }
 export async function createPipelineCommand({
   lifecycle,
@@ -183,11 +181,10 @@ export const createAuthoredPipelineServer = createServerFn({ method: "POST" })
 export const updateAuthoredPipelineServer = createServerFn({ method: "POST" })
   .validator((input: unknown) => input)
   .handler(async ({ data }) => {
-    const input = data as { id: string; existing: PipelineDefinition; authoring: PipelineAuthoring }
+    const input = data as { id: string; authoring: PipelineAuthoring }
     const pipeline = await updateAuthoredPipelineCommand({
       lifecycle: createLifecycle({ store: createPipelineStore(), client: connectClient() }),
       id: input.id,
-      existing: input.existing,
       authoring: input.authoring,
     })
     return pipeline.id
