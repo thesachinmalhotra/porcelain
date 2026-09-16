@@ -6,7 +6,9 @@ export type ConnectStream = {
 }
 
 export type ConnectStreamSummary = Omit<ConnectStream, "config">
-export type ConnectStreamStats = Record<string, unknown>
+export type JsonValue = string | number | boolean | null | JsonObject | JsonValue[]
+export type JsonObject = { [key: string]: JsonValue }
+export type ConnectStreamStats = JsonObject
 export type ConnectStreamConfig = Record<string, unknown>
 
 type FetchLike = typeof fetch

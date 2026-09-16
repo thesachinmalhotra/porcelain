@@ -18,9 +18,16 @@ export function PipelineWorkspace({ connectReady, pipelines }: PipelineWorkspace
         <ul>
           {pipelines.map((pipeline) => (
             <li key={pipeline.id}>
-              <strong>{pipeline.id}</strong>
-              <span>{pipeline.runtime.active ? "Active" : "Inactive"}</span>
-              <span>{pipeline.runtime.uptime} uptime</span>
+              <strong>{pipeline.name}</strong>
+              <span>{pipeline.id}</span>
+              <span>
+                {pipeline.runtime.connected
+                  ? pipeline.runtime.active
+                    ? "Active"
+                    : "Inactive"
+                  : "Disconnected"}
+              </span>
+              {pipeline.runtime.connected && <span>{pipeline.runtime.uptime} uptime</span>}
             </li>
           ))}
         </ul>
