@@ -28,3 +28,6 @@ build/
 
 # Local Porcelain state
 .porcelain/
+
+# Superpowers execution scratch
+.superpowers/
