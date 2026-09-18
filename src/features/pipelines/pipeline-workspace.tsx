@@ -1,37 +1,30 @@
+import { useMemo, useState } from "react"
 import type { PipelineSummary } from "../../pipeline/pipeline"
+import { Icon } from "../../components/app-shell"
 
-type PipelineWorkspaceProps = {
-  connectReady: boolean
-  pipelines: PipelineSummary[]
+type PipelineWorkspaceProps = { connectReady: boolean; pipelines: PipelineSummary[] }
+
+function Status({ pipeline }: { pipeline: PipelineSummary }) {
+  const label = !pipeline.runtime.connected ? "Disconnected" : pipeline.runtime.active ? "Active" : "Inactive"
+  return <span className={`status status-${label.toLowerCase()}`}><span className="status-dot" />{label}</span>
+}
+
+function formatNumber(value: unknown) { return typeof value === "number" ? new Intl.NumberFormat().format(value) : "—" }
+function receivedMessages(pipeline: PipelineSummary) {
+  const input = pipeline.runtime.stats?.input
+  return input && typeof input === "object" && "received" in input ? input.received : undefined
 }
 
 export function PipelineWorkspace({ connectReady, pipelines }: PipelineWorkspaceProps) {
-  return (
-    <section aria-labelledby="pipelines-heading">
-      <header>
-        <h2 id="pipelines-heading">Pipelines</h2>
-        <p>{connectReady ? "Connect ready" : "Connect unavailable"}</p>
-      </header>
-      {pipelines.length === 0 ? (
-        <p>No pipelines</p>
-      ) : (
-        <ul>
-          {pipelines.map((pipeline) => (
-            <li key={pipeline.id}>
-              <strong>{pipeline.name}</strong>
-              <span>{pipeline.id}</span>
-              <span>
-                {pipeline.runtime.connected
-                  ? pipeline.runtime.active
-                    ? "Active"
-                    : "Inactive"
-                  : "Disconnected"}
-              </span>
-              {pipeline.runtime.connected && <span>{pipeline.runtime.uptime} uptime</span>}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  )
+  const [query, setQuery] = useState("")
+  const [selectedId, setSelectedId] = useState(pipelines[0]?.id ?? "")
+  const selected = pipelines.find((pipeline) => pipeline.id === selectedId) ?? pipelines[0]
+  const filtered = useMemo(() => pipelines.filter((pipeline) => pipeline.name.toLowerCase().includes(query.toLowerCase()) || pipeline.id.toLowerCase().includes(query.toLowerCase())), [pipelines, query])
+
+  return <div className="workspace-page" id="pipelines">
+    <header className="page-header"><div><div className="breadcrumbs"><span>Workspace</span><b>/</b><strong>Pipelines</strong></div><h1>Pipelines</h1><p>Design, deploy, and observe your data movement.</p></div><button className="button button-primary" type="button"><Icon name="plus" />New pipeline</button></header>
+    <div className="metric-row"><div className="metric-card"><span>All pipelines</span><strong>{pipelines.length.toString().padStart(2, "0")}</strong><small>Managed by Porcelain</small></div><div className="metric-card"><span>Connected</span><strong>{pipelines.filter((p) => p.runtime.connected).length.toString().padStart(2, "0")}</strong><small><span className="status-dot online" />Runtime linked</small></div><div className="metric-card"><span>Active now</span><strong>{pipelines.filter((p) => p.runtime.active).length.toString().padStart(2, "0")}</strong><small>Across all streams</small></div><div className="runtime-card"><span className={`status-dot ${connectReady ? "online" : "offline"}`} /><div><strong>{connectReady ? "Connect ready" : "Runtime unavailable"}</strong><small>Redpanda Connect · localhost:4195</small></div><button className="icon-button" aria-label="Refresh runtime" type="button"><Icon name="pulse" /></button></div></div>
+    <div className="content-grid"><section className="panel pipeline-panel"><div className="panel-header"><div><h2>All pipelines <span className="count-badge">{pipelines.length}</span></h2><p>Durable configurations and their runtime state.</p></div><label className="input-search"><Icon name="search" /><input aria-label="Filter pipelines" placeholder="Filter pipelines" value={query} onChange={(event) => setQuery(event.target.value)} /></label></div>{filtered.length === 0 ? <div className="empty-state"><div className="empty-icon"><Icon name="pipeline" /></div><h3>{pipelines.length === 0 ? "No pipelines yet" : "No matching pipelines"}</h3><p>{pipelines.length === 0 ? "Create your first pipeline to start moving data." : "Try a different name or pipeline ID."}</p>{pipelines.length === 0 && <button className="button button-primary" type="button"><Icon name="plus" />Create pipeline</button>}</div> : <div className="pipeline-list">{filtered.map((pipeline) => <button className={`pipeline-row${selected?.id === pipeline.id ? " selected" : ""}`} key={pipeline.id} onClick={() => setSelectedId(pipeline.id)} type="button"><span className="pipeline-icon"><Icon name="pipeline" /></span><span className="pipeline-main"><strong>{pipeline.name}</strong><code>{pipeline.id}</code></span><span className="stream-name">{pipeline.connectStreamId ? <><Icon name="database" />{pipeline.connectStreamId}</> : "No stream linked"}</span><span className="row-runtime">{pipeline.runtime.connected ? `${pipeline.runtime.uptime} uptime` : "—"}</span><Status pipeline={pipeline} /><span className="row-chevron">›</span></button>)}</div>}</section>
+      {selected ? <aside className="panel detail-panel"><div className="detail-heading"><div className="pipeline-icon large"><Icon name="pipeline" /></div><div><span className="eyebrow">Pipeline</span><h2>Pipeline details</h2></div><button className="icon-button" aria-label="Pipeline options" type="button">•••</button></div><div className="detail-status"><span className={`detail-state detail-state-${selected.runtime.connected ? "connected" : "disconnected"}`}>{selected.runtime.connected ? (selected.runtime.active ? "Running" : "Stopped") : "Disconnected"}</span><span className="mono">Updated just now</span></div><div className="detail-section"><h3>Runtime overview</h3><dl className="detail-list"><div><dt>Connection</dt><dd>{selected.runtime.connected ? "Redpanda Connect" : "Not connected"}</dd></div><div><dt>Stream</dt><dd className="mono">{selected.connectStreamId ?? "—"}</dd></div><div><dt>Uptime</dt><dd>{selected.runtime.connected ? selected.runtime.uptime : "—"}</dd></div><div><dt>Messages processed</dt><dd>{formatNumber(receivedMessages(selected))}</dd></div></dl></div><div className="detail-section"><h3>Configuration</h3><div className="config-card"><span className="config-dot" /><div><strong>Desired state</strong><small>Stored in Porcelain</small></div><span className="mono">v1</span></div></div><div className="detail-actions"><button className="button button-secondary" type="button">Edit configuration</button><button className="button button-ghost" type="button">View logs <span>↗</span></button></div></aside> : <aside className="panel detail-panel detail-placeholder"><Icon name="pipeline" /><p>Select a pipeline to inspect its runtime state.</p></aside>}</div>
+  </div>
 }
