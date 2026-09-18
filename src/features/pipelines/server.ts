@@ -1,8 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
-import { pipelineSummaryFromConnectStream, pipelineSummaryFromDefinition } from "../../pipeline/pipeline"
+import { authoringFromDefinition, pipelineSummaryFromConnectStream, pipelineSummaryFromDefinition, type PipelineWorkspacePipeline } from "../../pipeline/pipeline"
 import { createPipelineLifecycle } from "../../pipeline/lifecycle"
 import { createAuthoredPipeline, updateAuthoredPipeline } from "../../pipeline/authoring-lifecycle"
-import type { PipelineAuthoring } from "../../pipeline/authoring"
+import { validatePipelineAuthoring, type PipelineAuthoring } from "../../pipeline/authoring"
 import { createPipelineStore } from "../../pipeline/store"
 import { createConnectClient } from "../../runtime/connect/client"
 import type { PipelineDefinition } from "../../pipeline/store"
@@ -10,7 +10,7 @@ import type { PipelineDefinition } from "../../pipeline/store"
 type PipelineStore = ReturnType<typeof createPipelineStore>
 type ConnectRuntimeClient = Pick<
   ReturnType<typeof createConnectClient>,
-  "ready" | "listStreams" | "getStreamStats"
+  "probe" | "listStreams" | "getStreamStats"
 >
 type PipelineLifecycle = ReturnType<typeof createPipelineLifecycle>
 
@@ -35,27 +35,28 @@ export async function loadPipelineWorkspace({
   client,
 }: PipelineWorkspaceDependencies) {
   const definitions = await store.list()
-  const connectReady = await client.ready()
+  const probe = await client.probe()
 
   let streams
   try {
     streams = await client.listStreams()
   } catch {
     return {
-      connectReady,
-      pipelines: definitions.map(pipelineSummaryFromDefinition),
+      connectReachable: false,
+      connectReady: probe.ready,
+      pipelines: definitions.map((definition) => ({ ...pipelineSummaryFromDefinition(definition), authoring: authoringFromDefinition(definition) })),
     }
   }
 
-  const pipelines = await Promise.all(
+  const pipelines: PipelineWorkspacePipeline[] = await Promise.all(
     definitions.map(async (definition) => {
       if (!definition.connectStreamId) {
-        return pipelineSummaryFromDefinition(definition)
+        return { ...pipelineSummaryFromDefinition(definition), authoring: authoringFromDefinition(definition) }
       }
 
       const stream = streams[definition.connectStreamId]
       if (!stream) {
-        return pipelineSummaryFromDefinition(definition)
+        return { ...pipelineSummaryFromDefinition(definition), authoring: authoringFromDefinition(definition) }
       }
 
       let stats = null
@@ -65,11 +66,11 @@ export async function loadPipelineWorkspace({
         // The stream may disappear between the stream listing and stats request.
       }
 
-      return pipelineSummaryFromConnectStream(definition, stream, stats)
+      return { ...pipelineSummaryFromConnectStream(definition, stream, stats), authoring: authoringFromDefinition(definition) }
     }),
   )
 
-  return { connectReady, pipelines }
+  return { connectReachable: probe.reachable, connectReady: probe.ready, pipelines }
 }
 
 function createLifecycle({ store, client }: PipelineCommandDependencies): PipelineLifecycle {
@@ -136,57 +137,98 @@ export const getPipelineWorkspace = createServerFn({ method: "GET" }).handler(as
   }),
 )
 
+function validateId(input: unknown): string {
+  if (!isObject(input) || typeof input.id !== "string" || input.id.trim() === "") {
+    throw new Error("Pipeline id must be a non-empty string")
+  }
+  return input.id
+}
+
+function validatePipelineDefinition(input: unknown): PipelineDefinition {
+  if (!isObject(input)) throw new Error("Pipeline definition must be an object")
+  if (typeof input.id !== "string" || input.id.trim() === "") throw new Error("Pipeline id must be a non-empty string")
+  if (typeof input.name !== "string" || input.name.trim() === "") throw new Error("Pipeline name must be a non-empty string")
+  if (!isObject(input.metadata)) throw new Error("Pipeline metadata must be an object")
+  if (!isObject(input.desiredConfig)) throw new Error("Pipeline desiredConfig must be an object")
+  if (input.connectStreamId !== null && typeof input.connectStreamId !== "string") throw new Error("Pipeline connectStreamId must be a string or null")
+  return input as PipelineDefinition
+}
+
+function validatePipelineUpdate(input: unknown): { id: string; update: Omit<PipelineDefinition, "id"> } {
+  if (!isObject(input) || !isObject(input.update)) throw new Error("Pipeline update must be an object")
+  const id = validateId(input)
+  const update = input.update
+  if (!isObject(update.metadata)) throw new Error("Pipeline metadata must be an object")
+  if (!isObject(update.desiredConfig)) throw new Error("Pipeline desiredConfig must be an object")
+  if (update.connectStreamId !== null && typeof update.connectStreamId !== "string") throw new Error("Pipeline connectStreamId must be a string or null")
+  if (typeof update.name !== "string" || update.name.trim() === "") throw new Error("Pipeline name must be a non-empty string")
+  return { id, update: update as Omit<PipelineDefinition, "id"> }
+}
+
+function validateAuthoredCreate(input: unknown): PipelineAuthoring {
+  validatePipelineAuthoring(input)
+  return input
+}
+
+function validateAuthoredPipeline(input: unknown): { id: string; authoring: PipelineAuthoring } {
+  if (!isObject(input)) throw new Error("Pipeline update must be an object")
+  if (typeof input.id !== "string" || input.id.trim() === "") throw new Error("Pipeline id must be a non-empty string")
+  validatePipelineAuthoring(input.authoring)
+  if (input.authoring.id !== input.id) throw new Error("Pipeline authoring id must match the pipeline id")
+  return { id: input.id, authoring: input.authoring }
+}
+
 export const createPipeline = createServerFn({ method: "POST" })
-  .validator((input: unknown) => input)
+  .validator(validatePipelineDefinition)
   .handler(async ({ data }) => {
     const pipeline = await createPipelineCommand({
       lifecycle: createLifecycle({ store: createPipelineStore(), client: connectClient() }),
-      definition: data as PipelineDefinition,
+      definition: data,
     })
     return pipeline.id
   })
 
 export const updatePipeline = createServerFn({ method: "POST" })
-  .validator((input: unknown) => input)
+  .validator(validatePipelineUpdate)
   .handler(async ({ data }) => {
-    const input = data as { id: string; update: Omit<PipelineDefinition, "id"> }
     const pipeline = await updatePipelineCommand({
       lifecycle: createLifecycle({ store: createPipelineStore(), client: connectClient() }),
-      id: input.id,
-      update: input.update,
+      id: data.id,
+      update: data.update,
     })
     return pipeline.id
   })
 
 export const deletePipeline = createServerFn({ method: "POST" })
-  .validator((input: unknown) => input)
+  .validator(validateId)
   .handler(async ({ data }) => {
     await deletePipelineCommand({
       lifecycle: createLifecycle({ store: createPipelineStore(), client: connectClient() }),
-      id: (data as { id: string }).id,
+      id: data,
     })
   })
 
-
 export const createAuthoredPipelineServer = createServerFn({ method: "POST" })
-  .validator((input: unknown) => input)
+  .validator(validateAuthoredCreate)
   .handler(async ({ data }) => {
     const pipeline = await createAuthoredPipelineCommand({
       lifecycle: createLifecycle({ store: createPipelineStore(), client: connectClient() }),
-      authoring: data as PipelineAuthoring,
+      authoring: data,
     })
     return pipeline.id
   })
 
 export const updateAuthoredPipelineServer = createServerFn({ method: "POST" })
-  .validator((input: unknown) => input)
+  .validator(validateAuthoredPipeline)
   .handler(async ({ data }) => {
-    const input = data as { id: string; authoring: PipelineAuthoring }
     const pipeline = await updateAuthoredPipelineCommand({
       lifecycle: createLifecycle({ store: createPipelineStore(), client: connectClient() }),
-      id: input.id,
-      authoring: input.authoring,
+      id: data.id,
+      authoring: data.authoring,
     })
     return pipeline.id
   })
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}

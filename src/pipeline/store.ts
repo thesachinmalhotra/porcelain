@@ -1,13 +1,15 @@
 ﻿import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 
-export type PipelineMetadata = Record<string, unknown>
+import type { JsonObject } from "./authoring"
+
+export type PipelineMetadata = JsonObject
 
 export type PipelineDefinition = {
   id: string
   name: string
   metadata: PipelineMetadata
-  desiredConfig: Record<string, unknown>
+  desiredConfig: JsonObject
   connectStreamId: string | null
 }
 

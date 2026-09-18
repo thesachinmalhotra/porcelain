@@ -48,13 +48,17 @@ export function createConnectClient(options: ConnectClientOptions) {
   }
 
   return {
-    async ready(): Promise<boolean> {
+    async probe(): Promise<{ reachable: boolean; ready: boolean }> {
       try {
         const response = await request(baseUrl + "/ready")
-        return response.ok
+        return { reachable: true, ready: response.ok }
       } catch {
-        return false
+        return { reachable: false, ready: false }
       }
+    },
+
+    async ready(): Promise<boolean> {
+      return (await this.probe()).ready
     },
 
     async listStreams(): Promise<Record<string, ConnectStreamSummary>> {

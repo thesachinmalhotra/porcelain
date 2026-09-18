@@ -44,16 +44,21 @@ describe("ConnectClient lifecycle operations", () => {
     })
   })
 
-  it("checks Connect readiness", async () => {
-    const client = createConnectClient({
+  it("distinguishes reachability from readiness", async () => {
+    const readyClient = createConnectClient({
       baseUrl: "http://connect.test",
       fetch: async (input) => {
         expect(input).toBe("http://connect.test/ready")
         return new Response("OK", { status: 200 })
       },
     })
+    await expect(readyClient.probe()).resolves.toEqual({ reachable: true, ready: true })
 
-    await expect(client.ready()).resolves.toBe(true)
+    const degradedClient = createConnectClient({
+      baseUrl: "http://connect.test",
+      fetch: async () => new Response("faulty stream", { status: 503 }),
+    })
+    await expect(degradedClient.probe()).resolves.toEqual({ reachable: true, ready: false })
   })
 
   it("creates a stream with the exact Connect stream config", async () => {
@@ -138,6 +143,6 @@ describe("ConnectClient availability", () => {
       },
     })
 
-    await expect(client.ready()).resolves.toBe(false)
+    await expect(client.probe()).resolves.toEqual({ reachable: false, ready: false })
   })
 })
