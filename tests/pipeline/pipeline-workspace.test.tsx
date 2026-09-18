@@ -1,22 +1,31 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import type { ReactNode } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+
+
 })
 
 const mocks = vi.hoisted(() => ({
   updateAuthoredPipelineServer: vi.fn().mockResolvedValue("orders"),
+  createAuthoredPipelineServer: vi.fn().mockResolvedValue("new-pipeline"),
+  deletePipeline: vi.fn().mockResolvedValue(undefined),
   invalidate: vi.fn().mockResolvedValue(undefined),
+  navigate: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock("@tanstack/react-router", () => ({
-  useRouter: () => ({ invalidate: mocks.invalidate }),
+  useRouter: () => ({ invalidate: mocks.invalidate, navigate: mocks.navigate }),
+  Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
 }))
 
 vi.mock("../../src/features/pipelines/server", () => ({
   updateAuthoredPipelineServer: mocks.updateAuthoredPipelineServer,
+  createAuthoredPipelineServer: mocks.createAuthoredPipelineServer,
+  deletePipeline: mocks.deletePipeline,
 }))
 
 import { PipelineWorkspace } from "../../src/features/pipelines/pipeline-workspace"
@@ -132,5 +141,54 @@ describe("PipelineWorkspace", () => {
     }))
     expect(mocks.invalidate).toHaveBeenCalledWith({ sync: true })
     expect(screen.queryByText("This pipeline has unpublished changes")).toBeNull()
+  })
+  it("creates a pipeline from the workspace and navigates to it", async () => {
+    renderWorkspace()
+
+    fireEvent.click(screen.getByRole("button", { name: "New pipeline" }))
+    fireEvent.change(screen.getByLabelText("Pipeline ID"), { target: { value: "shipping" } })
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Shipping" } })
+    fireEvent.click(screen.getByRole("button", { name: "Create pipeline" }))
+
+    await waitFor(() => expect(mocks.createAuthoredPipelineServer).toHaveBeenCalledWith({
+      data: { id: "shipping", name: "Shipping", input: { stdin: {} }, output: { drop: {} } },
+    }))
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: "/pipelines/$pipelineId", params: { pipelineId: "shipping" } })
+  })
+
+  it("deletes a pipeline through the lifecycle boundary", async () => {
+    vi.stubGlobal("confirm", vi.fn().mockReturnValue(true))
+    renderWorkspace()
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete pipeline" }))
+
+    await waitFor(() => expect(mocks.deletePipeline).toHaveBeenCalledWith({ data: { id: "orders" } }))
+    expect(mocks.navigate).toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  it("creates a pipeline from the workspace and navigates to it", async () => {
+    renderWorkspace()
+
+    fireEvent.click(screen.getByRole("button", { name: "New pipeline" }))
+    fireEvent.change(screen.getByLabelText("Pipeline ID"), { target: { value: "shipping" } })
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Shipping" } })
+    fireEvent.click(screen.getByRole("button", { name: "Create pipeline" }))
+
+    await waitFor(() => expect(mocks.createAuthoredPipelineServer).toHaveBeenCalledWith({
+      data: { id: "shipping", name: "Shipping", input: { stdin: {} }, output: { drop: {} } },
+    }))
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: "/pipelines/$pipelineId", params: { pipelineId: "shipping" } })
+  })
+
+  it("deletes a pipeline through the real lifecycle boundary", async () => {
+    vi.stubGlobal("confirm", vi.fn().mockReturnValue(true))
+    renderWorkspace()
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete pipeline" }))
+
+    await waitFor(() => expect(mocks.deletePipeline).toHaveBeenCalledWith({ data: { id: "orders" } }))
+    expect(mocks.navigate).toHaveBeenCalled()
+    vi.unstubAllGlobals()
   })
 })
