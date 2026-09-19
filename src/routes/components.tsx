@@ -24,7 +24,7 @@ function Components() {
     const normalized = query.trim().toLowerCase()
     return connectComponents.filter((component) => {
       const matchesKind = kind === "all" || component.kinds.includes(kind)
-      const matchesQuery = !normalized || component.name.includes(normalized)
+      const matchesQuery = !normalized || component.name.includes(normalized) || component.description?.toLowerCase().includes(normalized)
       return matchesKind && matchesQuery
     })
   }, [kind, query])
@@ -73,20 +73,19 @@ function Components() {
             <article className="catalog-card" key={component.name}>
               <span>{component.kinds.join(" · ")}</span>
               <strong>{component.name}</strong>
+              {component.description && <p>{component.description}</p>}
               <small>
                 {component.support}
                 {component.enterprise ? " · Enterprise" : ""}
                 {component.cloud ? " · Cloud" : " · Self-managed"}
+                {component.composesProcessors ? " · Nested processors" : ""}
+                {component.fields ? ` · ${component.fields.length} documented fields` : ""}
               </small>
             </article>
           ))}
         </div>
 
-        {filtered.length === 0 && (
-          <div className="empty-inline">
-            No components match that search.
-          </div>
-        )}
+        {filtered.length === 0 && <div className="empty-inline">No components match that search.</div>}
       </section>
     </div>
   )

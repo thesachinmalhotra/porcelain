@@ -13,6 +13,12 @@ describe("Connect component catalog", () => {
     expect(connectComponents.some((component) => component.name === "memory" && component.kinds.includes("buffer"))).toBe(true)
   })
 
+  it("captures documented nested processor metadata", () => {
+    const branch = connectComponents.find((component) => component.name === "branch")
+    expect(branch?.composesProcessors).toBe(true)
+    expect(branch?.fields?.find((field) => field.name === "processors")?.type).toBe("processor[]")
+  })
+
   it("does not invent a deprecated Kafka component as the default Redpanda path", () => {
     expect(connectComponents.some((component) => component.name === "kafka")).toBe(false)
     expect(connectComponents.some((component) => component.name === "kafka_franz")).toBe(false)
