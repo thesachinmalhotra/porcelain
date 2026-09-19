@@ -10,7 +10,14 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ActivityRouteImport } from './routes/activity'
+import { Route as ComponentsRouteImport } from './routes/components'
+import { Route as OverviewRouteImport } from './routes/overview'
 import { Route as PipelinesRouteImport } from './routes/pipelines'
+import { Route as RuntimeRouteImport } from './routes/runtime'
+import { Route as SchemasRouteImport } from './routes/schemas'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as StreamsRouteImport } from './routes/streams'
 import { Route as PipelinesPipelineIdRouteImport } from './routes/pipelines/$pipelineId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -18,9 +25,44 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ActivityRoute = ActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComponentsRoute = ComponentsRouteImport.update({
+  id: '/components',
+  path: '/components',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OverviewRoute = OverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PipelinesRoute = PipelinesRouteImport.update({
   id: '/pipelines',
   path: '/pipelines',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RuntimeRoute = RuntimeRouteImport.update({
+  id: '/runtime',
+  path: '/runtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SchemasRoute = SchemasRouteImport.update({
+  id: '/schemas',
+  path: '/schemas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StreamsRoute = StreamsRouteImport.update({
+  id: '/streams',
+  path: '/streams',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PipelinesPipelineIdRoute = PipelinesPipelineIdRouteImport.update({
@@ -31,31 +73,90 @@ const PipelinesPipelineIdRoute = PipelinesPipelineIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/activity': typeof ActivityRoute
+  '/components': typeof ComponentsRoute
+  '/overview': typeof OverviewRoute
   '/pipelines': typeof PipelinesRouteWithChildren
+  '/runtime': typeof RuntimeRoute
+  '/schemas': typeof SchemasRoute
+  '/settings': typeof SettingsRoute
+  '/streams': typeof StreamsRoute
   '/pipelines/$pipelineId': typeof PipelinesPipelineIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/activity': typeof ActivityRoute
+  '/components': typeof ComponentsRoute
+  '/overview': typeof OverviewRoute
   '/pipelines': typeof PipelinesRouteWithChildren
+  '/runtime': typeof RuntimeRoute
+  '/schemas': typeof SchemasRoute
+  '/settings': typeof SettingsRoute
+  '/streams': typeof StreamsRoute
   '/pipelines/$pipelineId': typeof PipelinesPipelineIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/activity': typeof ActivityRoute
+  '/components': typeof ComponentsRoute
+  '/overview': typeof OverviewRoute
   '/pipelines': typeof PipelinesRouteWithChildren
+  '/runtime': typeof RuntimeRoute
+  '/schemas': typeof SchemasRoute
+  '/settings': typeof SettingsRoute
+  '/streams': typeof StreamsRoute
   '/pipelines/$pipelineId': typeof PipelinesPipelineIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/pipelines' | '/pipelines/$pipelineId'
+  fullPaths:
+    | '/'
+    | '/activity'
+    | '/components'
+    | '/overview'
+    | '/pipelines'
+    | '/runtime'
+    | '/schemas'
+    | '/settings'
+    | '/streams'
+    | '/pipelines/$pipelineId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/pipelines' | '/pipelines/$pipelineId'
-  id: '__root__' | '/' | '/pipelines' | '/pipelines/$pipelineId'
+  to:
+    | '/'
+    | '/activity'
+    | '/components'
+    | '/overview'
+    | '/pipelines'
+    | '/runtime'
+    | '/schemas'
+    | '/settings'
+    | '/streams'
+    | '/pipelines/$pipelineId'
+  id:
+    | '__root__'
+    | '/'
+    | '/activity'
+    | '/components'
+    | '/overview'
+    | '/pipelines'
+    | '/runtime'
+    | '/schemas'
+    | '/settings'
+    | '/streams'
+    | '/pipelines/$pipelineId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ActivityRoute: typeof ActivityRoute
+  ComponentsRoute: typeof ComponentsRoute
+  OverviewRoute: typeof OverviewRoute
   PipelinesRoute: typeof PipelinesRouteWithChildren
+  RuntimeRoute: typeof RuntimeRoute
+  SchemasRoute: typeof SchemasRoute
+  SettingsRoute: typeof SettingsRoute
+  StreamsRoute: typeof StreamsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -67,11 +168,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/activity': {
+      id: '/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof ActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/components': {
+      id: '/components'
+      path: '/components'
+      fullPath: '/components'
+      preLoaderRoute: typeof ComponentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/overview': {
+      id: '/overview'
+      path: '/overview'
+      fullPath: '/overview'
+      preLoaderRoute: typeof OverviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pipelines': {
       id: '/pipelines'
       path: '/pipelines'
       fullPath: '/pipelines'
       preLoaderRoute: typeof PipelinesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/runtime': {
+      id: '/runtime'
+      path: '/runtime'
+      fullPath: '/runtime'
+      preLoaderRoute: typeof RuntimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/schemas': {
+      id: '/schemas'
+      path: '/schemas'
+      fullPath: '/schemas'
+      preLoaderRoute: typeof SchemasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/streams': {
+      id: '/streams'
+      path: '/streams'
+      fullPath: '/streams'
+      preLoaderRoute: typeof StreamsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pipelines/$pipelineId': {
@@ -98,7 +248,14 @@ const PipelinesRouteWithChildren = PipelinesRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ActivityRoute: ActivityRoute,
+  ComponentsRoute: ComponentsRoute,
+  OverviewRoute: OverviewRoute,
   PipelinesRoute: PipelinesRouteWithChildren,
+  RuntimeRoute: RuntimeRoute,
+  SchemasRoute: SchemasRoute,
+  SettingsRoute: SettingsRoute,
+  StreamsRoute: StreamsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

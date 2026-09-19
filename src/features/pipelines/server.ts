@@ -5,6 +5,7 @@ import { createAuthoredPipeline, updateAuthoredPipeline } from "../../pipeline/a
 import { validatePipelineAuthoring, type PipelineAuthoring } from "../../pipeline/authoring"
 import { createPipelineStore } from "../../pipeline/store"
 import { createConnectClient } from "../../runtime/connect/client"
+import { createActivityStore } from "../../operational/activity"
 import type { PipelineDefinition } from "../../pipeline/store"
 
 type PipelineStore = ReturnType<typeof createPipelineStore>
@@ -74,7 +75,7 @@ export async function loadPipelineWorkspace({
 }
 
 function createLifecycle({ store, client }: PipelineCommandDependencies): PipelineLifecycle {
-  return createPipelineLifecycle({ store, client })
+  return createPipelineLifecycle({ store, client, activity: createActivityStore() })
 }
 
 export async function createAuthoredPipelineCommand({
