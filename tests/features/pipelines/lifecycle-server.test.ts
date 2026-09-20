@@ -1,6 +1,7 @@
-﻿import { describe, expect, it } from "vitest"
+ï»¿import { describe, expect, it } from "vitest"
 import type { PipelineDefinition } from "../../../src/pipeline/store"
 import { createPipelineCommand, deletePipelineCommand, updatePipelineCommand } from "../../../src/features/pipelines/server"
+import type { PipelineUpdate } from "../../../src/pipeline/lifecycle"
 
 const definition: PipelineDefinition = {
   id: "orders",
@@ -20,8 +21,8 @@ describe("pipeline lifecycle server boundary", () => {
 
   it("delegates update to the lifecycle service", async () => {
     const calls: string[] = []
-    const lifecycle = { updatePipeline: async (id: string, value: Omit<PipelineDefinition, "id">) => { calls.push(id); return { id, ...value } } }
-    const update = { ...definition, name: "Updated Orders" }
+    const lifecycle = { updatePipeline: async (id: string, value: PipelineUpdate) => { calls.push(id); return { id, ...value } } }
+    const { connectStreamId: _connectStreamId, ...update } = { ...definition, name: "Updated Orders" }
     await expect(updatePipelineCommand({ lifecycle, id: "orders", update })).resolves.toEqual(update)
     expect(calls).toEqual(["orders"])
   })

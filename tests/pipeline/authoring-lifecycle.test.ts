@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { PipelineDefinition } from "../../src/pipeline/store"
 import { createAuthoredPipeline, updateAuthoredPipeline } from "../../src/pipeline/authoring-lifecycle"
+import type { PipelineUpdate } from "../../src/pipeline/lifecycle"
 
 describe("authored pipeline lifecycle", () => {
   it("creates a durable definition through lifecycle with mapped Connect config", async () => {
@@ -32,9 +33,9 @@ describe("authored pipeline lifecycle", () => {
   })
 
   it("delegates updates without accepting a caller-supplied runtime stream id", async () => {
-    let received: { id: string; update: Omit<PipelineDefinition, "id"> } | undefined
+    let received: { id: string; update: PipelineUpdate } | undefined
     const lifecycle = {
-      updatePipeline: async (id: string, update: Omit<PipelineDefinition, "id">) => {
+      updatePipeline: async (id: string, update: PipelineUpdate) => {
         received = { id, update }
         return { id, ...update }
       },
@@ -55,7 +56,6 @@ describe("authored pipeline lifecycle", () => {
         name: "Orders v2",
         metadata: {},
         desiredConfig: { input: { generate: { interval: "2s", mapping: "root = {}" } }, output: { drop: {} } },
-        connectStreamId: null,
       },
     })
   })})

@@ -1,6 +1,8 @@
 import type { ConnectStreamConfig } from "../runtime/connect/client"
 import type { PipelineDefinition } from "./store"
 
+export type PipelineUpdate = Omit<PipelineDefinition, "id" | "connectStreamId">
+
 type PipelineStore = {
   create(definition: PipelineDefinition): Promise<PipelineDefinition>
   get(id: string): Promise<PipelineDefinition | null>
@@ -24,7 +26,7 @@ export function createPipelineLifecycle({ store, client, activity }: PipelineLif
       await activity?.append({ type: "pipeline.created", pipelineId: pipeline.id, pipelineName: pipeline.name, detail: "Pipeline created and published" })
       return pipeline
     },
-    async updatePipeline(id: string, update: Omit<PipelineDefinition, "id">): Promise<PipelineDefinition> {
+    async updatePipeline(id: string, update: PipelineUpdate): Promise<PipelineDefinition> {
       const existing = await store.get(id)
       if (!existing) throw new Error("Pipeline not found: " + id)
       if (existing.connectStreamId) await client.updateStream(existing.connectStreamId, update.desiredConfig)

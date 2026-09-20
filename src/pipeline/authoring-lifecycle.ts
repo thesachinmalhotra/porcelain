@@ -1,4 +1,5 @@
 import type { PipelineDefinition } from "./store"
+import type { PipelineUpdate } from "./lifecycle"
 import { authoringToConnectConfig, validatePipelineAuthoring, type PipelineAuthoring } from "./authoring"
 
 type CreateLifecycle = {
@@ -6,7 +7,7 @@ type CreateLifecycle = {
 }
 
 type UpdateLifecycle = {
-  updatePipeline(id: string, update: Omit<PipelineDefinition, "id">): Promise<PipelineDefinition>
+  updatePipeline(id: string, update: PipelineUpdate): Promise<PipelineDefinition>
 }
 
 export async function createAuthoredPipeline({
@@ -43,6 +44,5 @@ export async function updateAuthoredPipeline({
     name: authoring.name,
     metadata: authoring.metadata ?? {},
     desiredConfig: authoringToConnectConfig(authoring),
-    connectStreamId: null,
   })
 }

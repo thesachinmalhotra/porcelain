@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { authoringFromDefinition, pipelineSummaryFromConnectStream, pipelineSummaryFromDefinition, type PipelineWorkspacePipeline } from "../../pipeline/pipeline"
-import { createPipelineLifecycle } from "../../pipeline/lifecycle"
+import { createPipelineLifecycle, type PipelineUpdate } from "../../pipeline/lifecycle"
 import { createAuthoredPipeline, updateAuthoredPipeline } from "../../pipeline/authoring-lifecycle"
 import { validatePipelineAuthoring, type PipelineAuthoring } from "../../pipeline/authoring"
 import { createPipelineStore } from "../../pipeline/store"
@@ -116,7 +116,7 @@ export async function updatePipelineCommand({
 }: {
   lifecycle: Pick<PipelineLifecycle, "updatePipeline">
   id: string
-  update: Omit<PipelineDefinition, "id">
+  update: PipelineUpdate
 }) {
   return lifecycle.updatePipeline(id, update)
 }
@@ -155,15 +155,15 @@ function validatePipelineDefinition(input: unknown): PipelineDefinition {
   return input as PipelineDefinition
 }
 
-function validatePipelineUpdate(input: unknown): { id: string; update: Omit<PipelineDefinition, "id"> } {
+function validatePipelineUpdate(input: unknown): { id: string; update: PipelineUpdate } {
   if (!isObject(input) || !isObject(input.update)) throw new Error("Pipeline update must be an object")
   const id = validateId(input)
   const update = input.update
   if (!isObject(update.metadata)) throw new Error("Pipeline metadata must be an object")
   if (!isObject(update.desiredConfig)) throw new Error("Pipeline desiredConfig must be an object")
-  if (update.connectStreamId !== null && typeof update.connectStreamId !== "string") throw new Error("Pipeline connectStreamId must be a string or null")
+  if ("connectStreamId" in update) throw new Error("Pipeline connectStreamId is lifecycle-owned")
   if (typeof update.name !== "string" || update.name.trim() === "") throw new Error("Pipeline name must be a non-empty string")
-  return { id, update: update as Omit<PipelineDefinition, "id"> }
+  return { id, update: update as PipelineUpdate }
 }
 
 function validateAuthoredCreate(input: unknown): PipelineAuthoring {
