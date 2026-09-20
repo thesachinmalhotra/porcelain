@@ -65,7 +65,9 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, p
       const value = JSON.parse(draftText) as unknown
       if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("Configuration must be a JSON object")
       const config = value as JsonObject
-      const component: PipelineAuthoringComponent = step.kind === "processor" ? { kind: "processor", index: selectedStep.index } : { kind: step.kind }
+      const component: PipelineAuthoringComponent = step.kind === "processor"
+        ? { kind: "processor", index: selectedStep.kind === "processor" ? selectedStep.index : 0 }
+        : { kind: step.kind }
       updateDraft(authoringFromComponent(authoring, component, config)); setEditing(false); setError(null)
     } catch (value) { setError(value instanceof Error ? value.message : "Invalid JSON") }
   }
@@ -116,14 +118,14 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, p
   const create = async () => {
     const id = newId.trim()
     const name = newName.trim()
-    if (!/^[a-z0-9][a-z0-9-_]*$/.test(id)) { setError("Pipeline ID must use lowercase letters, numbers, hyphens, or underscores"); return }
+    if (!/^[a-z0-9][a-z0-9_-]*$/.test(id)) { setError("Pipeline ID must use lowercase letters, numbers, hyphens, or underscores"); return }
     if (!name) { setError("Pipeline name is required"); return }
     setSaving(true); setError(null)
     try {
       await createAuthoredPipelineServer({ data: { id, name, input: { stdin: {} }, output: { drop: {} } } })
       setShowCreate(false); setNewId(""); setNewName("")
       await router.invalidate({ sync: true })
-      await router.navigate({ to: "/pipelines/$pipelineId", params: { pipelineId: id } })
+      await router.navigate({ to: `/pipelines/${id}`, params: { pipelineId: id } })
     } catch (value) { setError(value instanceof Error ? value.message : "Create failed") }
     finally { setSaving(false) }
   }
@@ -134,7 +136,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, p
       await deletePipeline({ data: { id: selected.id } })
       await router.invalidate({ sync: true })
       const next = pipelines.find((pipeline) => pipeline.id !== selected.id)
-      if (next) await router.navigate({ to: "/pipelines/$pipelineId", params: { pipelineId: next.id } })
+      if (next) await router.navigate({ to: `/pipelines/$pipelineId`, params: { pipelineId: next.id } })
       else await router.navigate({ to: "/pipelines" })
     } catch (value) { setError(value instanceof Error ? value.message : "Delete failed") }
     finally { setDeleting(false) }
@@ -142,7 +144,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, p
   return <div className="workspace-page" id="pipelines">
     <header className="page-header"><div><div className="breadcrumbs"><Link to="/pipelines">Pipelines</Link><b>/</b><strong>{authoring?.id ?? selected.id}</strong></div><h1>{authoring?.name ?? selected.name}</h1><p>Compose, publish, and observe this pipeline.</p></div><div className="header-actions"><button className="button button-secondary" type="button" onClick={() => setShowCreate(true)}>New pipeline</button><button className="button button-secondary" type="button" onClick={discard} disabled={!dirty}>Discard</button><button className="button button-primary" type="button" onClick={publish} disabled={!dirty || saving}>{saving ? "Publishing…" : "Publish"}</button></div></header>
     {dirty && <div className="unpublished-banner"><span className="status-dot" />This pipeline has unpublished changes</div>}
-    <div className="metric-row"><div className="metric-card"><span>All pipelines</span><strong>{pipelines.length.toString().padStart(2, "0")}</strong><small>Managed by Porcelain</small></div><div className="metric-card"><span>Connected</span><strong>{pipelines.filter((p) => p.runtime.connected).length.toString().padStart(2, "0")}</strong><small><span className="status-dot online" />Runtime linked</small></div><div className="metric-card"><span>Active now</span><strong>{pipelines.filter((p) => p.runtime.active).length.toString().padStart(2, "0")}</strong><small>Across all streams</small></div><div className="runtime-card"><span className={`status-dot ${connectReady ? "online" : "offline"}`} /><div><strong>{!connectReachable ? "Runtime unreachable" : connectReady ? "Connect ready" : "Connect degraded"}</strong><small>Redpanda Connect · localhost:4195</small></div></div></div>
+    <div className="metric-row"><div className="metric-card"><span>All pipelines</span><strong>{pipelines.length.toString().padStart(2, "0")}</strong><small>Managed by Porcelain</small></div><div className="metric-card"><span>Connected</span><strong>{pipelines.filter((p) => p.runtime.connected).length.toString().padStart(2, "0")}</strong><small><span className="status-dot online" />Runtime linked</small></div><div className="metric-card"><span>Active now</span><strong>{pipelines.filter((p) => p.runtime.active).length.toString().padStart(2, "0")}</strong><small>Across all streams</small></div><div className="runtime-card"><span className={`status-dot ${connectReady ? "online" : "offline"}`} /><div><strong>{!connectReachable ? "Runtime unreachable" : connectReady ? "Connect ready" : "Connect degraded"}</strong><small>Redpanda Connect → localhost:4195</small></div></div></div>
     <div className="content-grid">
       <section className="panel pipeline-panel">
         <div className="panel-header"><div><h2>Pipeline <span className="count-badge">{steps.length} steps</span></h2><p>Authoring configuration mapped directly to Redpanda Connect.</p></div><div className="header-actions"><button className="button button-secondary" type="button" onClick={addProcessor}>Add processor</button></div><label className="input-search"><Icon name="search" /><input aria-label="Filter pipelines" placeholder="Filter pipelines" value={query} onChange={(event) => setQuery(event.target.value)} /></label></div>
