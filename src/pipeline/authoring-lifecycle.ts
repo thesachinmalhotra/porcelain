@@ -1,9 +1,8 @@
-import type { PipelineDefinition } from "./store"
-import type { PipelineUpdate } from "./lifecycle"
+import type { PipelineCreate, PipelineDefinition, PipelineUpdate } from "./store"
 import { authoringToConnectConfig, validatePipelineAuthoring, type PipelineAuthoring } from "./authoring"
 
 type CreateLifecycle = {
-  createPipeline(definition: PipelineDefinition): Promise<PipelineDefinition>
+  createPipeline(definition: PipelineCreate): Promise<PipelineDefinition>
 }
 
 type UpdateLifecycle = {
@@ -23,7 +22,6 @@ export async function createAuthoredPipeline({
     name: authoring.name,
     metadata: authoring.metadata ?? {},
     desiredConfig: authoringToConnectConfig(authoring),
-    connectStreamId: null,
   })
 }
 
@@ -37,9 +35,7 @@ export async function updateAuthoredPipeline({
   authoring: PipelineAuthoring
 }): Promise<PipelineDefinition> {
   validatePipelineAuthoring(authoring)
-  if (authoring.id !== id) {
-    throw new Error("Pipeline authoring id must match the pipeline id")
-  }
+  if (authoring.id !== id) throw new Error("Pipeline authoring id must match the pipeline id")
   return lifecycle.updatePipeline(id, {
     name: authoring.name,
     metadata: authoring.metadata ?? {},

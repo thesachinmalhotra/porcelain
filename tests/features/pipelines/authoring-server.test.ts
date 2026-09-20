@@ -1,16 +1,23 @@
 import { describe, expect, it } from "vitest"
-import type { PipelineDefinition } from "../../../src/pipeline/store"
+import type { PipelineCreate, PipelineDefinition, PipelineUpdate } from "../../../src/pipeline/store"
 import { createAuthoredPipelineCommand, updateAuthoredPipelineCommand } from "../../../src/features/pipelines/server"
 
 describe("pipeline authoring server boundary", () => {
   it("delegates authored create to the authoring lifecycle", async () => {
-    const received: PipelineDefinition[] = []
+    const received: PipelineCreate[] = []
     const lifecycle = {
-      createPipeline: async (definition: PipelineDefinition) => {
+      createPipeline: async (definition: PipelineCreate) => {
         received.push(definition)
-        return definition
+        return {
+          id: definition.id,
+          name: definition.name,
+          metadata: definition.metadata,
+          desiredRevisionId: "revision-1",
+          connectStreamId: definition.id,
+        } satisfies PipelineDefinition
       },
     }
+
     const result = await createAuthoredPipelineCommand({
       lifecycle,
       authoring: {
@@ -21,6 +28,7 @@ describe("pipeline authoring server boundary", () => {
         output: { drop: {} },
       },
     })
+
     expect(result.id).toBe("orders")
     expect(received[0].desiredConfig).toEqual({
       input: { generate: { interval: "1s", mapping: "root = {}" } },
@@ -29,14 +37,21 @@ describe("pipeline authoring server boundary", () => {
     })
   })
 
-  it("delegates authored update without accepting caller-supplied runtime state", async () => {
-    const calls: Array<{ id: string; update: Omit<PipelineDefinition, "id"> }> = []
+  it("delegates authored update without caller-supplied runtime or revision state", async () => {
+    const calls: Array<{ id: string; update: PipelineUpdate }> = []
     const lifecycle = {
-      updatePipeline: async (id: string, update: Omit<PipelineDefinition, "id">) => {
+      updatePipeline: async (id: string, update: PipelineUpdate) => {
         calls.push({ id, update })
-        return { id, ...update }
+        return {
+          id,
+          name: update.name,
+          metadata: update.metadata,
+          desiredRevisionId: "revision-2",
+          connectStreamId: id,
+        }
       },
     }
+
     await expect(updateAuthoredPipelineCommand({
       lifecycle,
       id: "orders",
@@ -46,8 +61,16 @@ describe("pipeline authoring server boundary", () => {
         input: { generate: { interval: "2s", mapping: "root = {}" } },
         output: { drop: {} },
       },
-    })).resolves.toMatchObject({ id: "orders", name: "Orders v2" })
-    expect(calls).toHaveLength(1)
-    expect(calls[0].update.connectStreamId).toBeUndefined()
+    })).resolves.toMatchObject({ id: "orders", desiredRevisionId: "revision-2" })
+
+    expect(calls[0].update).toEqual({
+      name: "Orders v2",
+      metadata: {},
+      desiredConfig: {
+        input: { generate: { interval: "2s", mapping: "root = {}" },
+        },
+        output: { drop: {} },
+      },
+    })
   })
 })

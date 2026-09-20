@@ -1,29 +1,48 @@
 import { describe, expect, it } from "vitest"
-import type { PipelineDefinition } from "../../../src/pipeline/store"
+import type { PipelineCreate, PipelineUpdate } from "../../../src/pipeline/store"
 import { createPipelineCommand, deletePipelineCommand, updatePipelineCommand } from "../../../src/features/pipelines/server"
-import type { PipelineUpdate } from "../../../src/pipeline/lifecycle"
 
-const definition: PipelineDefinition = {
+const createInput: PipelineCreate = {
   id: "orders",
   name: "Orders",
   metadata: {},
   desiredConfig: { input: { generate: { interval: "1s" } }, output: { drop: {} } },
-  connectStreamId: "orders-runtime",
+}
+
+const update: PipelineUpdate = {
+  name: "Updated Orders",
+  metadata: {},
+  desiredConfig: { input: { stdin: {} }, output: { drop: {} } },
 }
 
 describe("pipeline lifecycle server boundary", () => {
   it("delegates create to the lifecycle service", async () => {
     const calls: string[] = []
-    const lifecycle = { createPipeline: async (value: PipelineDefinition) => { calls.push("create"); return value } }
-    await expect(createPipelineCommand({ lifecycle, definition })).resolves.toEqual(definition)
+    const lifecycle = {
+      createPipeline: async (value: PipelineCreate) => {
+        calls.push("create")
+        return { ...value, desiredRevisionId: "revision-1", connectStreamId: value.id }
+      },
+    }
+    await expect(createPipelineCommand({ lifecycle, definition: createInput })).resolves.toMatchObject({
+      id: "orders",
+      desiredRevisionId: "revision-1",
+    })
     expect(calls).toEqual(["create"])
   })
 
   it("delegates update to the lifecycle service", async () => {
     const calls: string[] = []
-    const lifecycle = { updatePipeline: async (id: string, value: PipelineUpdate) => { calls.push(id); return { id, ...value, connectStreamId: definition.connectStreamId } } }
-    const { connectStreamId: _connectStreamId, ...update } = { ...definition, name: "Updated Orders" }
-    await expect(updatePipelineCommand({ lifecycle, id: "orders", update })).resolves.toEqual({ ...update, connectStreamId: definition.connectStreamId })
+    const lifecycle = {
+      updatePipeline: async (id: string, value: PipelineUpdate) => {
+        calls.push(id)
+        return { id, ...value, desiredRevisionId: "revision-2", connectStreamId: id }
+      },
+    }
+    await expect(updatePipelineCommand({ lifecycle, id: "orders", update })).resolves.toMatchObject({
+      id: "orders",
+      desiredRevisionId: "revision-2",
+    })
     expect(calls).toEqual(["orders"])
   })
 

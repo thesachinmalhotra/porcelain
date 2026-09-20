@@ -10,24 +10,21 @@ const definition = {
   id: "orders",
   name: "Orders",
   metadata: { owner: "porcelain" },
-  desiredConfig: {
-    input: { generate: { interval: "1s" } },
-    buffer: { none: {} },
-    pipeline: { processors: [{ bloblang: "root = this" }] },
-    output: { drop: {} },
-  },
+  desiredRevisionId: "revision-1",
   connectStreamId: "orders-runtime",
 }
 
+const config = {
+  input: { generate: { interval: "1s" } },
+  buffer: { none: {} },
+  pipeline: { processors: [{ bloblang: "root = this" }] },
+  output: { drop: {} },
+}
+
 describe("pipeline domain", () => {
-  it("keeps Porcelain identity and desired config independent from the Connect stream id", () => {
+  it("keeps durable desired revision identity independent from Connect runtime state", () => {
     const stats = { input: { received: 10 }, output: { sent: 9 } }
-    const stream = {
-      active: true,
-      uptime: 12.5,
-      uptime_str: "12.5s",
-      config: definition.desiredConfig,
-    }
+    const stream = { active: true, uptime: 12.5, uptime_str: "12.5s", config }
 
     expect(pipelineFromConnectStream(definition, stream, stats)).toEqual({
       ...definition,

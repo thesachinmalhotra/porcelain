@@ -1,5 +1,5 @@
 import type { ConnectStream, ConnectStreamStats, ConnectStreamSummary } from "../runtime/connect/client"
-import type { PipelineDefinition } from "./store"
+import type { PipelineDefinition, PipelineRevision } from "./store"
 import type { JsonObject, PipelineAuthoring } from "./authoring"
 
 export type PipelineRuntime = {
@@ -22,8 +22,8 @@ export type PipelineWorkspacePipeline = PipelineSummary & {
   authoring: PipelineAuthoring
 }
 
-export function authoringFromDefinition(definition: PipelineDefinition): PipelineAuthoring {
-  const config = definition.desiredConfig
+export function authoringFromDefinition(definition: PipelineDefinition, revision: PipelineRevision): PipelineAuthoring {
+  const config = revision.spec
   const pipeline = isObject(config.pipeline) ? config.pipeline : undefined
   const hasProcessors = pipeline && Object.prototype.hasOwnProperty.call(pipeline, "processors")
   const processors = hasProcessors && Array.isArray(pipeline.processors) ? pipeline.processors.filter(isObject) : undefined
@@ -40,16 +40,12 @@ export function authoringFromDefinition(definition: PipelineDefinition): Pipelin
   }
 }
 
-function isObject(value: unknown): value is JsonObject { return typeof value === "object" && value !== null && !Array.isArray(value) }
+function isObject(value: unknown): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 
 export function disconnectedPipelineRuntime(): PipelineRuntime {
-  return {
-    connected: false,
-    active: false,
-    uptimeSeconds: 0,
-    uptime: "0s",
-    stats: null,
-  }
+  return { connected: false, active: false, uptimeSeconds: 0, uptime: "0s", stats: null }
 }
 
 export function pipelineFromConnectStream(

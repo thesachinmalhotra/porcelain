@@ -1,15 +1,20 @@
 import { describe, expect, it } from "vitest"
-import type { PipelineDefinition } from "../../src/pipeline/store"
+import type { PipelineCreate, PipelineDefinition, PipelineUpdate } from "../../src/pipeline/store"
 import { createAuthoredPipeline, updateAuthoredPipeline } from "../../src/pipeline/authoring-lifecycle"
-import type { PipelineUpdate } from "../../src/pipeline/lifecycle"
 
 describe("authored pipeline lifecycle", () => {
-  it("creates a durable definition through lifecycle with mapped Connect config", async () => {
-    const calls: PipelineDefinition[] = []
+  it("maps authored configuration into a revision command", async () => {
+    const calls: PipelineCreate[] = []
     const lifecycle = {
-      createPipeline: async (definition: PipelineDefinition) => {
+      createPipeline: async (definition: PipelineCreate) => {
         calls.push(definition)
-        return definition
+        return {
+          id: definition.id,
+          name: definition.name,
+          metadata: definition.metadata,
+          desiredRevisionId: "revision-1",
+          connectStreamId: definition.id,
+        } satisfies PipelineDefinition
       },
     }
     const result = await createAuthoredPipeline({
@@ -23,21 +28,26 @@ describe("authored pipeline lifecycle", () => {
         output: { drop: {} },
       },
     })
-    expect(result.desiredConfig).toEqual({
+    expect(result.desiredRevisionId).toBe("revision-1")
+    expect(calls[0].desiredConfig).toEqual({
       input: { generate: { interval: "1s", mapping: "root = {}" } },
       pipeline: { processors: [{ mapping: "root = this" }] },
       output: { drop: {} },
     })
-    expect(result.connectStreamId).toBeNull()
-    expect(calls).toHaveLength(1)
   })
 
-  it("delegates updates without accepting a caller-supplied runtime stream id", async () => {
+  it("does not pass runtime or revision identity during update", async () => {
     let received: { id: string; update: PipelineUpdate } | undefined
     const lifecycle = {
       updatePipeline: async (id: string, update: PipelineUpdate) => {
         received = { id, update }
-        return { id, ...update, connectStreamId: "orders-runtime" }
+        return {
+          id,
+          name: update.name,
+          metadata: update.metadata,
+          desiredRevisionId: "revision-2",
+          connectStreamId: "orders",
+        }
       },
     }
     await updateAuthoredPipeline({
@@ -55,7 +65,11 @@ describe("authored pipeline lifecycle", () => {
       update: {
         name: "Orders v2",
         metadata: {},
-        desiredConfig: { input: { generate: { interval: "2s", mapping: "root = {}" } }, output: { drop: {} } },
+        desiredConfig: {
+          input: { generate: { interval: "2s", mapping: "root = {}" } },
+          output: { drop: {} },
+        },
       },
     })
-  })})
+  })
+})

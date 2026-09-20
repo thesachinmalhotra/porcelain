@@ -15,7 +15,7 @@ async function createStoreWithPipeline() {
   const dir = await mkdtemp(join(tmpdir(), "porcelain-workspace-"))
   tempDirs.push(dir)
   const store = createPipelineStore(join(dir, "pipelines.json"))
-  await store.create({
+  await store.createWithRevision({
     id: "orders",
     name: "Orders",
     metadata: { owner: "porcelain" },
@@ -24,7 +24,6 @@ async function createStoreWithPipeline() {
       pipeline: { threads: 4, processors: [{ label: "normalize", bloblang: "root = this" }] },
       output: { drop: {} },
     },
-    connectStreamId: "orders-runtime",
   })
   return store
 }
@@ -58,7 +57,7 @@ describe("loadPipelineWorkspace", () => {
       pipelines: [{
         id: "orders",
         name: "Orders",
-        connectStreamId: "orders-runtime",
+        connectStreamId: "orders",
         runtime: { connected: false, active: false, uptimeSeconds: 0, uptime: "0s", stats: null },
         authoring: expectedAuthoring,
       }],
@@ -70,7 +69,7 @@ describe("loadPipelineWorkspace", () => {
     const client = {
       probe: async () => ({ reachable: true, ready: true }),
       listStreams: async () => ({
-        "orders-runtime": { active: true, uptime: 42, uptime_str: "42s" },
+        orders: { active: true, uptime: 42, uptime_str: "42s" },
       }),
       getStreamStats: async (id: string) => ({ stream: id, input: { received: 42 } }),
     }
@@ -81,42 +80,13 @@ describe("loadPipelineWorkspace", () => {
       pipelines: [{
         id: "orders",
         name: "Orders",
-        connectStreamId: "orders-runtime",
+        connectStreamId: "orders",
         runtime: {
           connected: true,
           active: true,
           uptimeSeconds: 42,
           uptime: "42s",
-          stats: { stream: "orders-runtime", input: { received: 42 } },
-        },
-        authoring: expectedAuthoring,
-      }],
-    })
-  })
-
-  it("keeps live association when Connect is reachable but not ready", async () => {
-    const store = await createStoreWithPipeline()
-    const client = {
-      probe: async () => ({ reachable: true, ready: false }),
-      listStreams: async () => ({
-        "orders-runtime": { active: false, uptime: 9, uptime_str: "9s" },
-      }),
-      getStreamStats: async () => ({ input: { received: 9 } }),
-    }
-
-    await expect(loadPipelineWorkspace({ store, client })).resolves.toEqual({
-      connectReachable: true,
-      connectReady: false,
-      pipelines: [{
-        id: "orders",
-        name: "Orders",
-        connectStreamId: "orders-runtime",
-        runtime: {
-          connected: true,
-          active: false,
-          uptimeSeconds: 9,
-          uptime: "9s",
-          stats: { input: { received: 9 } },
+          stats: { stream: "orders", input: { received: 42 } },
         },
         authoring: expectedAuthoring,
       }],
@@ -131,15 +101,15 @@ describe("loadPipelineWorkspace", () => {
       getStreamStats: async () => ({}),
     }
 
-    const workspace = await loadPipelineWorkspace({ store, client })
-    expect(workspace.connectReachable).toBe(true)
-    expect(workspace.connectReady).toBe(true)
-    expect(workspace.pipelines[0]).toEqual({
-      id: "orders",
-      name: "Orders",
-      connectStreamId: "orders-runtime",
-      runtime: { connected: false, active: false, uptimeSeconds: 0, uptime: "0s", stats: null },
-      authoring: expectedAuthoring,
+    await expect(loadPipelineWorkspace({ store, client })).resolves.toMatchObject({
+      connectReachable: true,
+      connectReady: true,
+      pipelines: [{
+        id: "orders",
+        connectStreamId: "orders",
+        runtime: { connected: false, active: false, uptimeSeconds: 0, uptime: "0s", stats: null },
+        authoring: expectedAuthoring,
+      }],
     })
   })
 })

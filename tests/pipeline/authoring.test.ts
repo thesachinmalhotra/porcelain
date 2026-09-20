@@ -51,12 +51,19 @@ describe("pipeline authoring", () => {
 })
 
 describe("pipeline authoring round-trip", () => {
-  it("preserves unmodeled Connect fields when an authored component changes", () => {
+  it("preserves unmodeled Connect fields from the immutable revision spec", () => {
     const definition = {
       id: "orders",
       name: "Orders",
       metadata: { owner: "porcelain" },
-      desiredConfig: {
+      desiredRevisionId: "revision-1",
+      connectStreamId: "orders-runtime",
+    }
+    const revision = {
+      id: "revision-1",
+      pipelineId: "orders",
+      version: 1,
+      spec: {
         input: { generate: { interval: "1s" } },
         buffer: { memory: { limit: 100 } },
         pipeline: {
@@ -66,10 +73,11 @@ describe("pipeline authoring round-trip", () => {
         },
         output: { drop: {} },
       },
-      connectStreamId: "orders-runtime",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      checksum: "checksum",
     }
 
-    const authoring = authoringFromDefinition(definition)
+    const authoring = authoringFromDefinition(definition, revision)
     authoring.input = { generate: { interval: "2s" } }
 
     expect(authoringToConnectConfig(authoring)).toEqual({
