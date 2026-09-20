@@ -10,15 +10,17 @@ export type PipelineAuthoring = {
   buffer?: JsonObject
   processors?: JsonObject[]
   output: JsonObject
-  /** Existing Connect fields are preserved so authoring edits do not erase settings Porcelain does not model yet. */
+  /**
+   * Existing Connect fields are preserved so authoring edits do not erase settings Porcelain does not model yet.
+   */
   connectConfig?: JsonObject
 }
 
 export type PipelineAuthoringComponent =
-  | { kind: "input" }
-  | { kind: "buffer" }
+  | { kind: "input"; index?: never }
+  | { kind: "buffer"; index?: never }
   | { kind: "processor"; index: number }
-  | { kind: "output" }
+  | { kind: "output"; index?: never }
 
 export function validatePipelineAuthoring(input: unknown): asserts input is PipelineAuthoring {
   if (!isObject(input)) throw new Error("Pipeline authoring must be an object")
