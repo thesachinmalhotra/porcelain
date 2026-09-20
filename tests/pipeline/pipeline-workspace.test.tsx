@@ -153,7 +153,7 @@ describe("PipelineWorkspace", () => {
     await waitFor(() => expect(mocks.createAuthoredPipelineServer).toHaveBeenCalledWith({
       data: { id: "shipping", name: "Shipping", input: { stdin: {} }, output: { drop: {} } },
     }))
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: "/pipelines/$pipelineId", params: { pipelineId: "shipping" } })
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: "/pipelines/shipping", params: { pipelineId: "shipping" } })
   })
 
   it("deletes a pipeline through the lifecycle boundary", async () => {
@@ -178,7 +178,7 @@ describe("PipelineWorkspace", () => {
     await waitFor(() => expect(mocks.createAuthoredPipelineServer).toHaveBeenCalledWith({
       data: { id: "shipping", name: "Shipping", input: { stdin: {} }, output: { drop: {} } },
     }))
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: "/pipelines/$pipelineId", params: { pipelineId: "shipping" } })
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: "/pipelines/shipping", params: { pipelineId: "shipping" } })
   })
 
   it("deletes a pipeline through the real lifecycle boundary", async () => {

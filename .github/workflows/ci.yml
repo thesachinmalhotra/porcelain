@@ -35,8 +35,24 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Start Redpanda Connect
+        run: |
+          docker run -d --name porcelain-connect -p 4195:4195 docker.redpanda.com/redpandadata/connect:4.30.1 streams
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4195/ready >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs porcelain-connect
+          exit 1
+
       - name: Test
         run: npm test
 
       - name: Build
         run: npm run build
+
+      - name: Stop Redpanda Connect
+        if: always()
+        run: docker rm -f porcelain-connect

@@ -48,6 +48,6 @@ describe("pipeline authoring server boundary", () => {
       },
     })).resolves.toMatchObject({ id: "orders", name: "Orders v2" })
     expect(calls).toHaveLength(1)
-    expect(calls[0].update.connectStreamId).toBeNull()
+    expect(calls[0].update.connectStreamId).toBeUndefined()
   })
 })
