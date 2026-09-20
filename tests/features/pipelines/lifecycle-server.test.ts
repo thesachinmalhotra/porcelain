@@ -1,4 +1,4 @@
-ï»¿import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vitest"
 import type { PipelineDefinition } from "../../../src/pipeline/store"
 import { createPipelineCommand, deletePipelineCommand, updatePipelineCommand } from "../../../src/features/pipelines/server"
 import type { PipelineUpdate } from "../../../src/pipeline/lifecycle"
