@@ -37,7 +37,7 @@ describe("authored pipeline lifecycle", () => {
     const lifecycle = {
       updatePipeline: async (id: string, update: PipelineUpdate) => {
         received = { id, update }
-        return { id, ...update }
+        return { id, ...update, connectStreamId: "orders-runtime" }
       },
     }
     await updateAuthoredPipeline({

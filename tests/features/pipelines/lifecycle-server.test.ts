@@ -21,9 +21,9 @@ describe("pipeline lifecycle server boundary", () => {
 
   it("delegates update to the lifecycle service", async () => {
     const calls: string[] = []
-    const lifecycle = { updatePipeline: async (id: string, value: PipelineUpdate) => { calls.push(id); return { id, ...value } } }
+    const lifecycle = { updatePipeline: async (id: string, value: PipelineUpdate) => { calls.push(id); return { id, ...value, connectStreamId: definition.connectStreamId } } }
     const { connectStreamId: _connectStreamId, ...update } = { ...definition, name: "Updated Orders" }
-    await expect(updatePipelineCommand({ lifecycle, id: "orders", update })).resolves.toEqual(update)
+    await expect(updatePipelineCommand({ lifecycle, id: "orders", update })).resolves.toEqual({ ...update, connectStreamId: definition.connectStreamId })
     expect(calls).toEqual(["orders"])
   })
 
