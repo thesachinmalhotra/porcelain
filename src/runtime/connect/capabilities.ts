@@ -3,6 +3,11 @@ import { promisify } from "node:util"
 
 const execFileAsync = promisify(execFile)
 
+/**
+ * These are the component roles exposed by `rpk connect list --format json`.
+ * They describe Connect's component universe; they are not a Porcelain
+ * component registry.
+ */
 export type ConnectComponentKind =
   | "input"
   | "output"
@@ -23,6 +28,8 @@ export type ConnectCapabilityDiscovery = {
   components: ConnectComponentCapability[]
   source: "rpk"
   executable: string
+  inventoryFormat: "json"
+  schemaFormat: "cue"
 }
 
 export type ConnectCapabilityExecutor = (
@@ -35,13 +42,6 @@ export type ConnectCapabilityOptions = {
   execute?: ConnectCapabilityExecutor
 }
 
-type RawComponent = {
-  name?: unknown
-  type?: unknown
-  kind?: unknown
-  status?: unknown
-}
-
 const defaultExecute: ConnectCapabilityExecutor = async (executable, args) => {
   const result = await execFileAsync(executable, args, {
     maxBuffer: 8 * 1024 * 1024,
@@ -49,6 +49,13 @@ const defaultExecute: ConnectCapabilityExecutor = async (executable, args) => {
   return { stdout: result.stdout, stderr: result.stderr }
 }
 
+/**
+ * Connect currently exposes two machine-oriented surfaces through `rpk
+ * connect list`: JSON is the component inventory and CUE is the configuration
+ * schema. Phase 1 deliberately consumes only the JSON inventory. The CUE
+ * schema remains Connect-owned input for the progressive inspector in SAC-45;
+ * it is not copied into a Porcelain schema model here.
+ */
 export async function discoverConnectCapabilities(
   options: ConnectCapabilityOptions = {},
 ): Promise<ConnectCapabilityDiscovery> {
@@ -72,6 +79,8 @@ export async function discoverConnectCapabilities(
     components,
     source: "rpk",
     executable,
+    inventoryFormat: "json",
+    schemaFormat: "cue",
   }
 }
 
@@ -88,8 +97,8 @@ function normalizeComponents(value: unknown): ConnectComponentCapability[] {
     }
 
     unique.set(component.name, {
-      ...existing,
-      kinds: [...new Set([...existing.kinds, ...component.kinds])],
+      name: component.name,
+      kinds: [...new Set([...existing.kinds, ...component.kinds])].sort(),
       status: existing.status ?? component.status,
     })
   }
@@ -109,7 +118,7 @@ function walk(
 
   if (!isRecord(value)) return
 
-  const kind = normalizeKind(value.type ?? value.kind) ?? inheritedKind
+  const kind = normalizeKind(value.kind ?? value.type) ?? inheritedKind
   const name = typeof value.name === "string" ? value.name : undefined
   if (name && kind) {
     output.push({
@@ -120,15 +129,13 @@ function walk(
   }
 
   for (const [key, child] of Object.entries(value)) {
-    const childKind = normalizeKind(key) ?? kind
-    walk(child, childKind, output)
+    walk(child, normalizeKind(key) ?? kind, output)
   }
 }
 
 function normalizeKind(value: unknown): ConnectComponentKind | undefined {
   if (typeof value !== "string") return undefined
-
-  switch (value.toLowerCase()) {
+  switch (value.toLowerCase().replaceAll("-", "_")) {
     case "input":
     case "inputs":
       return "input"
@@ -145,7 +152,6 @@ function normalizeKind(value: unknown): ConnectComponentKind | undefined {
     case "caches":
       return "cache"
     case "rate_limit":
-    case "rate-limits":
     case "rate_limits":
       return "rate_limit"
     case "metric":
@@ -160,9 +166,7 @@ function normalizeKind(value: unknown): ConnectComponentKind | undefined {
 }
 
 function normalizeStatus(value: unknown): ConnectComponentCapability["status"] {
-  if (value === "stable" || value === "beta" || value === "experimental") {
-    return value
-  }
+  if (value === "stable" || value === "beta" || value === "experimental") return value
   return undefined
 }
 

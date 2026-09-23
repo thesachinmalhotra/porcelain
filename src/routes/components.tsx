@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { useMemo, useState } from "react"
-import { connectComponents, type PipelineComponentKind } from "../pipeline/catalog"
+import { getComponents, type ComponentsFilter } from "../features/components/server"
 
 export const Route = createFileRoute("/components")({
+  loader: () => getComponents(),
   component: Components,
 })
 
-const filters: Array<{ label: string; value: PipelineComponentKind | "all" }> = [
+const filters: Array<{ label: string; value: ComponentsFilter }> = [
   { label: "All", value: "all" },
   { label: "Inputs", value: "input" },
   { label: "Processors", value: "processor" },
@@ -17,25 +18,25 @@ const filters: Array<{ label: string; value: PipelineComponentKind | "all" }> = 
 ]
 
 function Components() {
+  const workspace = Route.useLoaderData()
   const [query, setQuery] = useState("")
-  const [kind, setKind] = useState<PipelineComponentKind | "all">("all")
+  const [kind, setKind] = useState<ComponentsFilter>("all")
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase()
-    return connectComponents.filter((component) => {
+    return workspace.components.filter((component) => {
       const matchesKind = kind === "all" || component.kinds.includes(kind)
-      const matchesQuery = !normalized || component.name.includes(normalized) || component.description?.toLowerCase().includes(normalized)
-      return matchesKind && matchesQuery
+      return matchesKind && (!normalized || component.name.toLowerCase().includes(normalized))
     })
-  }, [kind, query])
+  }, [kind, query, workspace.components])
 
   return (
     <div className="workspace-page" id="components">
       <header className="page-header">
         <div>
           <span className="eyebrow">Manage</span>
-          <h1>Component catalog</h1>
-          <p>Connect-native components available to Porcelain authoring.</p>
+          <h1>Connect components</h1>
+          <p>Live component inventory discovered from the installed Redpanda Connect runtime.</p>
         </div>
       </header>
 
@@ -43,7 +44,7 @@ function Components() {
         <div className="panel-header">
           <div>
             <h2>Redpanda Connect</h2>
-            <p>{filtered.length} components in this Porcelain catalog slice.</p>
+            <p>{filtered.length} components discovered from Connect.</p>
           </div>
           <label className="input-search">
             <input
@@ -73,13 +74,8 @@ function Components() {
             <article className="catalog-card" key={component.name}>
               <span>{component.kinds.join(" · ")}</span>
               <strong>{component.name}</strong>
-              {component.description && <p>{component.description}</p>}
               <small>
-                {component.support}
-                {component.enterprise ? " · Enterprise" : ""}
-                {component.cloud ? " · Cloud" : " · Self-managed"}
-                {component.composesProcessors ? " · Nested processors" : ""}
-                {component.fields ? ` · ${component.fields.length} documented fields` : ""}
+                {component.status ? `Connect status: ${component.status}` : "Connect status unavailable"}
               </small>
             </article>
           ))}
