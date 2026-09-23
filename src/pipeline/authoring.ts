@@ -52,26 +52,33 @@ export function validatePipelineAuthoring(input: unknown): asserts input is Pipe
 
 export function authoringToConnectConfig(authoring: PipelineAuthoring): JsonObject {
   validatePipelineAuthoring(authoring)
-  const config = cloneObject(authoring.connectConfig ?? {})
+  const config: JsonObject = authoring.connectConfig ? cloneObject(authoring.connectConfig) : {}
   config.input = cloneObject(authoring.input)
   config.output = cloneObject(authoring.output)
 
   if (authoring.buffer !== undefined) config.buffer = cloneObject(authoring.buffer)
   else delete config.buffer
 
-  const existingPipeline = isObject(config.pipeline) ? cloneObject(config.pipeline) : undefined
   if (authoring.processors !== undefined) {
-    config.pipeline = { ...(existingPipeline ?? {}), processors: authoring.processors.map(cloneObject) }
-  } else if (existingPipeline && Object.keys(existingPipeline).length > 0) {
-    config.pipeline = existingPipeline
-  } else {
-    delete config.pipeline
+    const pipeline = isObject(config.pipeline) ? cloneObject(config.pipeline) : {}
+    if (authoring.processors.length === 0) delete pipeline.processors
+    else pipeline.processors = authoring.processors.map(cloneObject)
+    if (Object.keys(pipeline).length === 0) delete config.pipeline
+    else config.pipeline = pipeline
+  } else if (isObject(config.pipeline)) {
+    const pipeline = cloneObject(config.pipeline)
+    delete pipeline.processors
+    if (Object.keys(pipeline).length === 0) delete config.pipeline
+    else config.pipeline = pipeline
   }
-
   return config
 }
 
-export function replacePipelineAuthoringConfig(authoring: PipelineAuthoring, config: JsonObject): PipelineAuthoring {
+export function replacePipelineAuthoringConfig(
+  authoring: PipelineAuthoring,
+  config: JsonObject,
+  options: { persistConnectConfig?: boolean } = {},
+): PipelineAuthoring {
   validatePipelineAuthoring(authoring)
   if (!isObject(config.input)) throw new Error("Connect configuration input must be an object")
   if (!isObject(config.output)) throw new Error("Connect configuration output must be an object")
@@ -84,14 +91,15 @@ export function replacePipelineAuthoringConfig(authoring: PipelineAuthoring, con
       })
     : undefined
 
-  return {
+  const next: PipelineAuthoring = {
     ...cloneAuthoring(authoring),
     input: cloneObject(config.input),
     buffer: isObject(config.buffer) ? cloneObject(config.buffer) : undefined,
     processors,
     output: cloneObject(config.output),
-    connectConfig: cloneObject(config),
   }
+  if (options.persistConnectConfig !== false) next.connectConfig = cloneObject(config)
+  return next
 }
 
 export function updatePipelineAuthoring(
@@ -99,24 +107,7 @@ export function updatePipelineAuthoring(
   component: PipelineAuthoringComponent,
   config: JsonObject,
 ): PipelineAuthoring {
-  const next = cloneAuthoring(authoring)
-
-  switch (component.kind) {
-    case "input":
-      next.input = cloneObject(config)
-      break
-    case "buffer":
-      next.buffer = cloneObject(config)
-      break
-    case "processor":
-      assertProcessorIndex(next, component.index)
-      next.processors![component.index] = cloneObject(config)
-      break
-    case "output":
-      next.output = cloneObject(config)
-      break
-  }
-
+  const next = replacePipelineAuthoringConfig(authoring, updateNativeComponent(authoringToConnectConfig(authoring), component, config), { persistConnectConfig: false })
   return next
 }
 
@@ -129,9 +120,10 @@ export function setPipelineAuthoringBuffer(
   authoring: PipelineAuthoring,
   config: JsonObject | undefined,
 ): PipelineAuthoring {
-  const next = cloneAuthoring(authoring)
-  next.buffer = config === undefined ? undefined : cloneObject(config)
-  return next
+  const native = authoringToConnectConfig(authoring)
+  if (config === undefined) delete native.buffer
+  else native.buffer = cloneObject(config)
+  return replacePipelineAuthoringConfig(authoring, native, { persistConnectConfig: false })
 }
 
 export function addPipelineProcessor(
@@ -139,22 +131,38 @@ export function addPipelineProcessor(
   config: JsonObject,
   index = authoring.processors?.length ?? 0,
 ): PipelineAuthoring {
-  const processors = [...(authoring.processors ?? [])]
+  const native = authoringToConnectConfig(authoring)
+  const pipeline = isObject(native.pipeline) ? cloneObject(native.pipeline) : {}
+  const processors = Array.isArray(pipeline.processors) ? pipeline.processors.map((item) => {
+    if (!isObject(item)) throw new Error("Pipeline processors must contain only objects")
+    return cloneObject(item)
+  }) : []
   if (!Number.isInteger(index) || index < 0 || index > processors.length) {
     throw new Error("Processor index is out of range")
   }
   processors.splice(index, 0, cloneObject(config))
-  return { ...cloneAuthoring(authoring), processors }
+  pipeline.processors = processors
+  native.pipeline = pipeline
+  return replacePipelineAuthoringConfig(authoring, native, { persistConnectConfig: false })
 }
 
 export function removePipelineProcessor(
   authoring: PipelineAuthoring,
   index: number,
 ): PipelineAuthoring {
-  const processors = [...(authoring.processors ?? [])]
+  const native = authoringToConnectConfig(authoring)
+  const pipeline = isObject(native.pipeline) ? cloneObject(native.pipeline) : {}
+  const processors = Array.isArray(pipeline.processors) ? pipeline.processors.map((item) => {
+    if (!isObject(item)) throw new Error("Pipeline processors must contain only objects")
+    return cloneObject(item)
+  }) : []
   assertProcessorIndex({ ...authoring, processors }, index)
   processors.splice(index, 1)
-  return { ...cloneAuthoring(authoring), processors }
+  if (processors.length === 0) delete pipeline.processors
+  else pipeline.processors = processors
+  if (Object.keys(pipeline).length === 0) delete native.pipeline
+  else native.pipeline = pipeline
+  return replacePipelineAuthoringConfig(authoring, native, { persistConnectConfig: false })
 }
 
 export function movePipelineProcessor(
@@ -162,7 +170,12 @@ export function movePipelineProcessor(
   fromIndex: number,
   toIndex: number,
 ): PipelineAuthoring {
-  const processors = [...(authoring.processors ?? [])]
+  const native = authoringToConnectConfig(authoring)
+  const pipeline = isObject(native.pipeline) ? cloneObject(native.pipeline) : {}
+  const processors = Array.isArray(pipeline.processors) ? pipeline.processors.map((item) => {
+    if (!isObject(item)) throw new Error("Pipeline processors must contain only objects")
+    return cloneObject(item)
+  }) : []
   assertProcessorIndex({ ...authoring, processors }, fromIndex)
   if (!Number.isInteger(toIndex) || toIndex < 0 || toIndex >= processors.length) {
     throw new Error("Processor index is out of range")
@@ -171,7 +184,41 @@ export function movePipelineProcessor(
 
   const [processor] = processors.splice(fromIndex, 1)
   processors.splice(toIndex, 0, processor)
-  return { ...cloneAuthoring(authoring), processors }
+  pipeline.processors = processors
+  native.pipeline = pipeline
+  return replacePipelineAuthoringConfig(authoring, native, { persistConnectConfig: false })
+}
+
+function updateNativeComponent(
+  config: JsonObject,
+  component: PipelineAuthoringComponent,
+  value: JsonObject,
+): JsonObject {
+  const next = cloneObject(config)
+  switch (component.kind) {
+    case "input":
+      next.input = cloneObject(value)
+      break
+    case "buffer":
+      next.buffer = cloneObject(value)
+      break
+    case "output":
+      next.output = cloneObject(value)
+      break
+    case "processor": {
+      const pipeline = isObject(next.pipeline) ? cloneObject(next.pipeline) : {}
+      const processors = Array.isArray(pipeline.processors) ? pipeline.processors.map((item) => {
+        if (!isObject(item)) throw new Error("Pipeline processors must contain only objects")
+        return cloneObject(item)
+      }) : []
+      if (component.index < 0 || component.index >= processors.length) throw new Error("Processor index is out of range")
+      processors[component.index] = cloneObject(value)
+      pipeline.processors = processors
+      next.pipeline = pipeline
+      break
+    }
+  }
+  return next
 }
 
 function assertProcessorIndex(authoring: PipelineAuthoring, index: number): void {
