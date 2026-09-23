@@ -3,10 +3,10 @@ import { createConnectConfig, discoverConnectSchema, echoConnectConfig, lintConn
 
 describe.runIf(process.env.CI === "true")("native Connect integration", () => {
   it("uses the installed Connect CLI for generation, linting, echoing, and schema discovery", async () => {
-    const config = await createConnectConfig("generate//drop")
+    const config = await createConnectConfig()
 
-    expect(config.input).toBeDefined()
-    expect(config.output).toBeDefined()
+    expect(config.input).toEqual({ stdin: {} })
+    expect(config.output).toEqual({ stdout: {} })
 
     const lint = await lintConnectConfig(config)
     expect(lint.valid).toBe(true)
@@ -14,6 +14,16 @@ describe.runIf(process.env.CI === "true")("native Connect integration", () => {
     const normalized = await echoConnectConfig(config)
     expect(normalized.input).toBeDefined()
     expect(normalized.output).toBeDefined()
+
+    const inputConfig = await createConnectConfig("http_server//stdout")
+    const processorConfig = await createConnectConfig("stdin/mapping/stdout")
+    const outputConfig = await createConnectConfig("stdin//drop")
+    expect(inputConfig.input).toHaveProperty("http_server")
+    expect(processorConfig.pipeline).toHaveProperty("processors")
+    expect(outputConfig.output).toHaveProperty("drop")
+    await expect(lintConnectConfig(inputConfig).then((result) => result.valid)).resolves.toBe(true)
+    await expect(lintConnectConfig(processorConfig).then((result) => result.valid)).resolves.toBe(true)
+    await expect(lintConnectConfig(outputConfig).then((result) => result.valid)).resolves.toBe(true)
 
     const cue = await discoverConnectSchema()
     expect(cue).toContain("#Config")
