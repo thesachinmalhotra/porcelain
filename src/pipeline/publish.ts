@@ -46,8 +46,7 @@ export async function validatePipelineDraft(authoring: PipelineAuthoring, client
 
 export async function publishPipelineDraft({ store, client, authoring }: { store: Store; client: Client; authoring: PipelineAuthoring }) {
   const validation = await validatePipelineDraft(authoring, client)
-  if (!validation.valid) throw new Error(validation.lintErrors.join("
-"))
+  if (!validation.valid) throw new Error(validation.lintErrors.join("\n"))
   const existing = await store.get(authoring.id)
   if (!existing) throw new Error("Pipeline not found: " + authoring.id)
   const config = authoringToConnectConfig(authoring)
