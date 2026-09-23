@@ -32,9 +32,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck
-        run: npm run typecheck
-
       - name: Start Redpanda Connect
         run: |
           docker run -d --name porcelain-connect -p 4195:4195 docker.redpanda.com/redpandadata/connect:4.109.0 streams
@@ -56,11 +53,8 @@ jobs:
           "$HOME/.local/bin/rpk" connect install --connect-version 4.109.0 --force
           "$HOME/.local/bin/rpk" connect --version
 
-      - name: Test
-        run: npm test
-
-      - name: Build
-        run: npm run build
+      - name: Verify
+        run: npm run verify
 
       - name: Stop Redpanda Connect
         if: always()
