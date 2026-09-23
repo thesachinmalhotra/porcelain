@@ -44,7 +44,11 @@ function FriendlyFields({ config, onChange }: { config: JsonObject; onChange: (c
   return <div className="detail-list">
     {fields.map(({ path, value }) => <label key={path.join(".")} className="native-field">
       <span>{path.join(" → ")}</span>
-      <input value={value === null ? "null" : String(value)} type={typeof value === "number" ? "number" : "text"} onChange={(event) => onChange(setPath(config, path, typeof value === "number" ? Number(event.target.value) : event.target.value))} />
+      {typeof value === "boolean" ? (
+        <input checked={value} type="checkbox" onChange={(event) => onChange(setPath(config, path, event.target.checked))} />
+      ) : (
+        <input value={value === null ? "null" : String(value)} type={typeof value === "number" ? "number" : "text"} onChange={(event) => onChange(setPath(config, path, typeof value === "number" ? Number(event.target.value) : event.target.value))} />
+      )}
     </label>)}
   </div>
 }

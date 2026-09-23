@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { authoringToConnectConfig, replacePipelineAuthoringConfig, validatePipelineAuthoring } from "../../src/pipeline/authoring"
+import { addPipelineProcessor, authoringToConnectConfig, replacePipelineAuthoringConfig, updatePipelineAuthoring, validatePipelineAuthoring } from "../../src/pipeline/authoring"
 import { authoringFromDefinition } from "../../src/pipeline/pipeline"
 
 describe("pipeline authoring", () => {
@@ -113,6 +113,48 @@ describe("pipeline authoring round-trip", () => {
         processors: [{ label: "normalize", mapping: "root = this" }],
       },
       output: { drop: {} },
+    })
+  })
+
+  it("treats the native Connect config as the mutation source of truth", () => {
+    const authoring = authoringFromDefinition(
+      {
+        id: "orders",
+        name: "Orders",
+        metadata: {},
+        desiredRevisionId: "revision-1",
+        connectStreamId: "orders",
+      },
+      {
+        id: "revision-1",
+        pipelineId: "orders",
+        version: 1,
+        spec: {
+          input: { stdin: {} },
+          pipeline: { threads: 4, future: { preserve: true }, processors: [{ mapping: "root = this" }] },
+          output: { drop: {} },
+          observability: { metrics: { type: "prometheus" } },
+        },
+        createdAt: "2026-01-01T00:00:00.000Z",
+        checksum: "checksum",
+      },
+    )
+
+    const updated = updatePipelineAuthoring(authoring, { kind: "input" }, { http_server: { path: "/events" } })
+    const withProcessor = addPipelineProcessor(updated, { mapping: "root = this.uppercase()" })
+
+    expect(authoringToConnectConfig(withProcessor)).toEqual({
+      input: { http_server: { path: "/events" } },
+      pipeline: {
+        threads: 4,
+        future: { preserve: true },
+        processors: [
+          { mapping: "root = this" },
+          { mapping: "root = this.uppercase()" },
+        ],
+      },
+      output: { drop: {} },
+      observability: { metrics: { type: "prometheus" } },
     })
   })
 })
