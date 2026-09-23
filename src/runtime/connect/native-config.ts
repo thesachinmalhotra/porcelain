@@ -110,11 +110,20 @@ async function withTempConfig(
 ): Promise<ConnectCommandResult> {
   const directory = await mkdtemp(join(process.cwd(), ".porcelain-connect-"))
   const path = join(directory, "config.yaml")
+  const scheduleCleanup = () => {
+    const cleanup = setTimeout(() => {
+      void rm(directory, { recursive: true, force: true })
+    }, 5000)
+    cleanup.unref()
+  }
   try {
     await writeFile(path, serializeNativeConfig(config), "utf8")
-    return run(path)
-  } finally {
-    await rm(directory, { recursive: true, force: true })
+    const result = await run(path)
+    scheduleCleanup()
+    return result
+  } catch (error) {
+    scheduleCleanup()
+    throw error
   }
 }
 
