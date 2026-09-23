@@ -9,7 +9,7 @@ describe.runIf(process.env.CI === "true")("native Connect integration", () => {
     expect(config.output).toEqual({ stdout: {} })
 
     const lint = await lintConnectConfig(config)
-    expect(lint.valid).toBe(true)
+    if (!lint.valid) throw new Error(`Connect lint rejected generated config: ${lint.stderr || lint.stdout}`)
 
     const normalized = await echoConnectConfig(config)
     expect(normalized.input).toBeDefined()
