@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { authoringToConnectConfig, validatePipelineAuthoring } from "../../src/pipeline/authoring"
+import { authoringToConnectConfig, replacePipelineAuthoringConfig, validatePipelineAuthoring } from "../../src/pipeline/authoring"
 import { authoringFromDefinition } from "../../src/pipeline/pipeline"
 
 describe("pipeline authoring", () => {
@@ -51,6 +51,30 @@ describe("pipeline authoring", () => {
 })
 
 describe("pipeline authoring round-trip", () => {
+  it("replaces the whole native Connect config without dropping unknown fields", () => {
+    const authoring = {
+      id: "orders",
+      name: "Orders",
+      input: { stdin: {} },
+      output: { drop: {} },
+    }
+    const next = replacePipelineAuthoringConfig(authoring, {
+      input: { http_server: { path: "/events" } },
+      pipeline: { threads: 4, processors: [{ mapping: "root = this" }], future: { keep: true } },
+      output: { drop: {} },
+      observability: { metrics: { type: "prometheus" } },
+    })
+
+    expect(next.input).toEqual({ http_server: { path: "/events" } })
+    expect(next.processors).toEqual([{ mapping: "root = this" }])
+    expect(next.connectConfig).toEqual({
+      input: { http_server: { path: "/events" } },
+      pipeline: { threads: 4, processors: [{ mapping: "root = this" }], future: { keep: true } },
+      output: { drop: {} },
+      observability: { metrics: { type: "prometheus" } },
+    })
+  })
+
   it("preserves unmodeled Connect fields from the immutable revision spec", () => {
     const definition = {
       id: "orders",

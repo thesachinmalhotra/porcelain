@@ -1,4 +1,4 @@
-﻿export type ConnectStream = {
+export type ConnectStream = {
   active: boolean
   uptime: number
   uptime_str: string
@@ -10,6 +10,7 @@ export type JsonValue = string | number | boolean | null | JsonObject | JsonValu
 export type JsonObject = { [key: string]: JsonValue }
 export type ConnectStreamStats = JsonObject
 export type ConnectStreamConfig = Record<string, unknown>
+export type ConnectResourceType = "cache" | "input" | "output" | "processor" | "rate_limit"
 
 export class ConnectRequestError extends Error {
   readonly status: number
@@ -90,6 +91,28 @@ export function createConnectClient(options: ConnectClientOptions) {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(patch),
+      })
+    },
+
+    async createResource(type: ConnectResourceType, id: string, config: ConnectStreamConfig): Promise<void> {
+      await requestNoContent("/resources/" + encodeURIComponent(type) + "/" + encodeURIComponent(id), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(config),
+      })
+    },
+
+    async updateResource(type: ConnectResourceType, id: string, config: ConnectStreamConfig): Promise<void> {
+      await requestNoContent("/resources/" + encodeURIComponent(type) + "/" + encodeURIComponent(id), {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(config),
+      })
+    },
+
+    async deleteResource(type: ConnectResourceType, id: string): Promise<void> {
+      await requestNoContent("/resources/" + encodeURIComponent(type) + "/" + encodeURIComponent(id), {
+        method: "DELETE",
       })
     },
 

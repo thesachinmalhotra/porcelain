@@ -132,6 +132,27 @@ describe("ConnectClient lifecycle operations", () => {
 
     await expect(client.getStreamStats("orders")).resolves.toEqual(stats)
   })
+
+  it("manages Connect resources through the native resources API", async () => {
+    const calls: Array<{ path: string; method: string }> = []
+    const client = createConnectClient({
+      baseUrl: "http://connect.test",
+      fetch: async (input, init) => {
+        calls.push({ path: String(input), method: init?.method ?? "GET" })
+        return new Response("", { status: 200 })
+      },
+    })
+
+    await client.createResource("cache", "orders-cache", { memory: {} })
+    await client.updateResource("cache", "orders-cache", { memory: { ttl: "1m" } })
+    await client.deleteResource("cache", "orders-cache")
+
+    expect(calls).toEqual([
+      { path: "http://connect.test/resources/cache/orders-cache", method: "POST" },
+      { path: "http://connect.test/resources/cache/orders-cache", method: "PUT" },
+      { path: "http://connect.test/resources/cache/orders-cache", method: "DELETE" },
+    ])
+  })
 })
 
 describe("ConnectClient availability", () => {

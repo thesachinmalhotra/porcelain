@@ -71,6 +71,29 @@ export function authoringToConnectConfig(authoring: PipelineAuthoring): JsonObje
   return config
 }
 
+export function replacePipelineAuthoringConfig(authoring: PipelineAuthoring, config: JsonObject): PipelineAuthoring {
+  validatePipelineAuthoring(authoring)
+  if (!isObject(config.input)) throw new Error("Connect configuration input must be an object")
+  if (!isObject(config.output)) throw new Error("Connect configuration output must be an object")
+
+  const pipeline = isObject(config.pipeline) ? config.pipeline : undefined
+  const processors = pipeline && Array.isArray(pipeline.processors)
+    ? pipeline.processors.map((processor) => {
+        if (!isObject(processor)) throw new Error("Connect processor configuration must be an object")
+        return cloneObject(processor)
+      })
+    : undefined
+
+  return {
+    ...cloneAuthoring(authoring),
+    input: cloneObject(config.input),
+    buffer: isObject(config.buffer) ? cloneObject(config.buffer) : undefined,
+    processors,
+    output: cloneObject(config.output),
+    connectConfig: cloneObject(config),
+  }
+}
+
 export function updatePipelineAuthoring(
   authoring: PipelineAuthoring,
   component: PipelineAuthoringComponent,
