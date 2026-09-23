@@ -8,6 +8,7 @@ import {
 import { createPipelineLifecycle } from "../../pipeline/lifecycle"
 import { createAuthoredPipeline, updateAuthoredPipeline } from "../../pipeline/authoring-lifecycle"
 import { validatePipelineAuthoring, type PipelineAuthoring } from "../../pipeline/authoring"
+import { publishPipelineDraft, validatePipelineDraft } from "../../pipeline/publish"
 import { createPipelineStore } from "../../pipeline/store"
 import { createConnectClient } from "../../runtime/connect/client"
 import { createActivityStore } from "../../operational/activity"
@@ -287,19 +288,19 @@ export const createAuthoredPipelineServer = createServerFn({ method: "POST" })
     return pipeline.id
   })
 
-export const updateAuthoredPipelineServer = createServerFn({ method: "POST" })
+export const validateAuthoredPipelineServer = createServerFn({ method: "POST" })
   .validator(validateAuthoredPipeline)
-  .handler(async ({ data }) => {
-    const pipeline = await updateAuthoredPipelineCommand({
-      lifecycle: createLifecycle({
-        store: createPipelineStore(),
-        client: connectClient(),
-      }),
-      id: data.id,
-      authoring: data.authoring,
-    })
-    return pipeline.id
-  })
+  .handler(async ({ data }) => validatePipelineDraft(data.authoring, connectClient()))
+
+export const publishAuthoredPipelineServer = createServerFn({ method: "POST" })
+  .validator(validateAuthoredPipeline)
+  .handler(async ({ data }) => publishPipelineDraft({
+    store: createPipelineStore(),
+    client: connectClient(),
+    authoring: data.authoring,
+  }))
+
+export const updateAuthoredPipelineServer = publishAuthoredPipelineServer
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)

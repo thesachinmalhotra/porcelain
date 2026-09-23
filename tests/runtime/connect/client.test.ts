@@ -167,3 +167,21 @@ describe("ConnectClient availability", () => {
     await expect(client.probe()).resolves.toEqual({ reachable: false, ready: false })
   })
 })
+
+describe("ConnectRequestError details", () => {
+  it("preserves Streams API linting errors", async () => {
+    const client = createConnectClient({
+      baseUrl: "http://connect.test",
+      fetch: async () => new Response(JSON.stringify({
+        linting_errors: ["field foo not recognized", "missing output"],
+      }), {
+        status: 400,
+        headers: { "content-type": "application/json" },
+      }),
+    })
+    await expect(client.updateStream("orders", { input: { stdin: {} }, output: { drop: {} } })).rejects.toMatchObject({
+      status: 400,
+      details: { lintingErrors: ["field foo not recognized", "missing output"] },
+    })
+  })
+})

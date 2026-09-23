@@ -5,7 +5,7 @@ import type { JsonObject, PipelineAuthoring, PipelineAuthoringComponent } from "
 import { addPipelineProcessor, movePipelineProcessor, removePipelineProcessor, replacePipelineAuthoringConfig, setPipelineAuthoringBuffer, updatePipelineAuthoring } from "../../pipeline/authoring"
 import { authoringToConnectConfig } from "../../pipeline/authoring"
 import type { PipelineWorkspacePipeline } from "../../pipeline/pipeline"
-import { createAuthoredPipelineServer, deletePipeline, updateAuthoredPipelineServer } from "./server"
+import { createAuthoredPipelineServer, deletePipeline, publishAuthoredPipelineServer, validateAuthoredPipelineServer } from "./server"
 import { Icon } from "../../components/app-shell"
 import { createConnectComponentConfig, normalizeConnectConfig, validateConnectConfig } from "../components/server"
 import type { ConnectComponentCapability } from "../../runtime/connect/capabilities"
@@ -111,7 +111,10 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
 
   if (!selected) return <div className="workspace-page" id="pipelines"><div className="empty-state page-empty"><div className="empty-icon"><Icon name="pipeline" /></div><h3>No pipelines yet</h3><p>Create your first pipeline to start moving data.</p></div></div>
 
-  const updateDraft = (next: PipelineAuthoring) => setDrafts((current) => ({ ...current, [selected.id]: next }))
+  const updateDraft = (next: PipelineAuthoring) => {
+    setDrafts((current) => ({ ...current, [selected.id]: next }))
+    setValidation(null)
+  }
   const beginEdit = () => { if (!step) return; setError(null); setDraftText(JSON.stringify(step.config, null, 2)); setEditing(true) }
   const applyEdit = () => {
     if (!authoring || !step) return
@@ -151,12 +154,20 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
   }
 
   const validateWithConnect = async () => {
-    if (!step) return
+    if (!authoring) return
     setValidating(true)
     setValidation(null)
+    setError(null)
     try {
-      const result = await validateConnectConfig({ data: { config: step.config } })
-      setValidation({ valid: result.valid, message: result.valid ? "Connect accepted this configuration." : result.stderr || result.stdout || "Connect rejected this configuration." })
+      const result = await validateAuthoredPipelineServer({ data: { id: selected.id, authoring } })
+      setValidation({
+        valid: result.valid,
+        message: result.valid
+          ? result.restartRequired
+            ? "Connect accepted the draft. Publishing will restart this stream."
+            : "Connect accepted the draft. It is ready to publish."
+          : result.output,
+      })
     } catch (value) {
       setValidation({ valid: false, message: value instanceof Error ? value.message : "Connect validation failed" })
     } finally {
@@ -224,14 +235,18 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
 
   const discard = () => { setDrafts((current) => { const next = { ...current }; delete next[selected.id]; return next }); setEditing(false); setError(null) }
   const publish = async () => {
-    if (!authoring || !dirty) return
+    if (!authoring || !dirty || !validation?.valid) return
+    if (validation.message.includes("restart this stream") && !window.confirm("Publishing this change will restart the running Connect stream. Continue?")) return
     setSaving(true); setError(null)
     try {
-      await updateAuthoredPipelineServer({ data: { id: selected.id, authoring } })
+      await publishAuthoredPipelineServer({ data: { id: selected.id, authoring } })
       setDrafts((current) => { const next = { ...current }; delete next[selected.id]; return next })
       await router.invalidate({ sync: true })
-    } catch (value) { setError(value instanceof Error ? value.message : "Publish failed") }
-    finally { setSaving(false) }
+    } catch (value) {
+      const message = value instanceof Error ? value.message : "Publish failed"
+      setError(message)
+      setValidation({ valid: false, message })
+    } finally { setSaving(false) }
   }
 
   const create = async () => {
@@ -262,7 +277,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
   }
   const availableComponents = step ? workspaceComponents(components, step.kind) : []
   return <div className="workspace-page" id="pipelines">
-    <header className="page-header"><div><div className="breadcrumbs"><Link to="/pipelines">Pipelines</Link><b>/</b><strong>{authoring?.id ?? selected.id}</strong></div><h1>{authoring?.name ?? selected.name}</h1><p>Compose, publish, and observe this pipeline.</p></div><div className="header-actions"><button className="button button-secondary" type="button" onClick={() => setShowCreate(true)}>New pipeline</button><button className="button button-secondary" type="button" onClick={discard} disabled={!dirty}>Discard</button><button className="button button-primary" type="button" onClick={publish} disabled={!dirty || saving}>{saving ? "Publishing…" : "Publish"}</button></div></header>
+    <header className="page-header"><div><div className="breadcrumbs"><Link to="/pipelines">Pipelines</Link><b>/</b><strong>{authoring?.id ?? selected.id}</strong></div><h1>{authoring?.name ?? selected.name}</h1><p>Compose, publish, and observe this pipeline.</p></div><div className="header-actions"><button className="button button-secondary" type="button" onClick={() => setShowCreate(true)}>New pipeline</button><button className="button button-secondary" type="button" onClick={discard} disabled={!dirty}>Discard</button><button className="button button-secondary" type="button" onClick={() => void validateWithConnect()} disabled={!dirty || validating}>{validating ? "Validating…" : "Validate draft"}</button><button className="button button-primary" type="button" onClick={publish} disabled={!dirty || saving || !validation?.valid}>{saving ? "Publishing…" : "Publish"}</button></div></header>
     {dirty && <div className="unpublished-banner"><span className="status-dot" />This pipeline has unpublished changes</div>}
     <div className="metric-row"><div className="metric-card"><span>All pipelines</span><strong>{pipelines.length.toString().padStart(2, "0")}</strong><small>Managed by Porcelain</small></div><div className="metric-card"><span>Connected</span><strong>{pipelines.filter((p) => p.runtime.connected).length.toString().padStart(2, "0")}</strong><small><span className="status-dot online" />Runtime linked</small></div><div className="metric-card"><span>Active now</span><strong>{pipelines.filter((p) => p.runtime.active).length.toString().padStart(2, "0")}</strong><small>Across all streams</small></div><div className="runtime-card"><span className={`status-dot ${connectReady ? "online" : "offline"}`} /><div><strong>{!connectReachable ? "Runtime unreachable" : connectReady ? "Connect ready" : "Connect degraded"}</strong><small>Redpanda Connect → localhost:4195</small></div></div></div>
     <div className="content-grid">
@@ -301,7 +316,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
               {inspectorMode === "raw" && <button className="button button-primary" type="button" onClick={applyRaw}>Apply native config</button>}
               {inspectorMode === "friendly" && <button className="button button-secondary" type="button" onClick={() => { beginEdit(); setInspectorMode("advanced") }}>Edit configuration</button>}
               {inspectorMode === "advanced" && <><button className="button button-primary" type="button" onClick={applyEdit}>Apply change</button><button className="button button-ghost" type="button" onClick={() => setEditing(false)}>Cancel</button></>}
-              <button className="button button-secondary" type="button" onClick={() => void validateWithConnect()} disabled={validating}>{validating ? "Checking…" : "Validate with Connect"}</button>
+              <button className="button button-secondary" type="button" onClick={() => void validateWithConnect()} disabled={validating}>{validating ? "Checking…" : "Validate draft with Connect"}</button>
               <button className="button button-secondary" type="button" onClick={() => void normalizeWithConnect()} disabled={validating}>{validating ? "Working…" : "Normalize with Connect"}</button>
             </div>
           </div>
