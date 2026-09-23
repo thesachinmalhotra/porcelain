@@ -29,7 +29,7 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@tanstack/router-plugin": "^1.168.38",
+    "@tanstack/router-plugin": "^1.168.40",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^22.20.3",
     "@types/react": "^19.3.0",
