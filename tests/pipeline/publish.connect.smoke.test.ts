@@ -32,9 +32,7 @@ async function createStore(id: string) {
   tempDirs.push(dir)
   const store = createPipelineStore(join(dir, "pipelines.json"))
   await store.createWithRevision({
-    id,
-    name: "Smoke pipeline",
-    metadata: { source: "sac-46-smoke" },
+    id, name: "Smoke pipeline", metadata: { source: "sac-46-smoke" },
     desiredConfig: connectConfig('root = "v1"'),
   })
   return store
@@ -88,7 +86,7 @@ run("SAC-46 real Connect publish", () => {
     })
   }, 30000)
 
-  it("preserves Connect linting_errors on a rejected Streams API publish", async () => {
+  it("preserves the native Connect error when Streams API publish is rejected", async () => {
     const id = "sac-46-invalid-" + Date.now()
     streamIds.push(id)
     const client = createConnectClient({ baseUrl })
@@ -96,7 +94,9 @@ run("SAC-46 real Connect publish", () => {
       input: { generate: { interval: "1s", mapping: 'root = "invalid"', count: 0 } },
       output: { definitely_not_a_real_output: {} },
     })).rejects.toSatisfy((error: unknown) =>
-      error instanceof ConnectRequestError && error.status === 400 && Boolean(error.details?.lintingErrors?.length),
+      error instanceof ConnectRequestError &&
+      error.status === 400 &&
+      error.details?.message?.includes("unable to infer output type"),
     )
   }, 30000)
 })
