@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link, useRouter } from "@tanstack/react-router"
+import { parse, stringify } from "yaml"
 import type { JsonObject, PipelineAuthoring, PipelineAuthoringComponent } from "../../pipeline/authoring"
-import { addPipelineProcessor, movePipelineProcessor, removePipelineProcessor, setPipelineAuthoringBuffer, updatePipelineAuthoring } from "../../pipeline/authoring"
+import { addPipelineProcessor, movePipelineProcessor, removePipelineProcessor, replacePipelineAuthoringConfig, setPipelineAuthoringBuffer, updatePipelineAuthoring } from "../../pipeline/authoring"
+import { authoringToConnectConfig } from "../../pipeline/authoring"
 import type { PipelineWorkspacePipeline } from "../../pipeline/pipeline"
-import { createAuthoredPipelineServer, deletePipeline, updateAuthoredPipelineServer } from "./server"
+import { createAuthoredPipelineServer, deletePipeline, publishAuthoredPipelineServer, validateAuthoredPipelineServer } from "./server"
 import { Icon } from "../../components/app-shell"
+import { createConnectComponentConfig, normalizeConnectConfig, validateConnectConfig } from "../components/server"
+import type { ConnectComponentCapability } from "../../runtime/connect/capabilities"
 
-type PipelineWorkspaceProps = { connectReachable: boolean; connectReady: boolean; pipelines: PipelineWorkspacePipeline[]; pipelineId?: string }
+type PipelineWorkspaceProps = { connectReachable: boolean; connectReady: boolean; pipelines: PipelineWorkspacePipeline[]; components?: ConnectComponentCapability[]; pipelineId?: string }
 type Step = { id: string; label: string; kind: "input" | "buffer" | "processor" | "output"; config: JsonObject }
 
 function authoringFromComponent(authoring: PipelineAuthoring, component: PipelineAuthoringComponent, config: JsonObject): PipelineAuthoring {
@@ -30,7 +34,52 @@ function receivedMessages(pipeline: PipelineWorkspacePipeline) {
   return input && typeof input === "object" && "received" in input ? input.received : undefined
 }
 
-export function PipelineWorkspace({ connectReachable, connectReady, pipelines, pipelineId }: PipelineWorkspaceProps) {
+function workspaceComponents(components: ConnectComponentCapability[], kind: Step["kind"]): ConnectComponentCapability[] {
+  return components.filter((component) => component.kinds.includes(kind))
+}
+
+function FriendlyFields({ config, onChange }: { config: JsonObject; onChange: (config: JsonObject) => void }) {
+  const fields = scalarFields(config)
+  if (fields.length === 0) return <p>No scalar fields are exposed at this level. Use Advanced or Raw to edit the native Connect configuration.</p>
+  return <div className="detail-list">
+    {fields.map(({ path, value }) => <label key={path.join(".")} className="native-field">
+      <span>{path.join(" → ")}</span>
+      {typeof value === "boolean" ? (
+        <input checked={value} type="checkbox" onChange={(event) => onChange(setPath(config, path, event.target.checked))} />
+      ) : (
+        <input value={value === null ? "null" : String(value)} type={typeof value === "number" ? "number" : "text"} onChange={(event) => onChange(setPath(config, path, typeof value === "number" ? Number(event.target.value) : event.target.value))} />
+      )}
+    </label>)}
+  </div>
+}
+
+function scalarFields(config: JsonObject, prefix: string[] = [], depth = 0): Array<{ path: string[]; value: string | number | boolean | null }> {
+  if (depth > 2) return []
+  const fields: Array<{ path: string[]; value: string | number | boolean | null }> = []
+  for (const [key, value] of Object.entries(config)) {
+    const path = [...prefix, key]
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value === null) fields.push({ path, value })
+    else if (isJsonObject(value)) fields.push(...scalarFields(value, path, depth + 1))
+  }
+  return fields
+}
+
+function setPath(config: JsonObject, path: string[], value: string | number | boolean | null): JsonObject {
+  const next = structuredClone(config)
+  let cursor = next
+  for (const segment of path.slice(0, -1)) {
+    if (!isJsonObject(cursor[segment])) cursor[segment] = {}
+    cursor = cursor[segment] as JsonObject
+  }
+  cursor[path[path.length - 1]] = value
+  return next
+}
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+export function PipelineWorkspace({ connectReachable, connectReady, pipelines, components = [], pipelineId }: PipelineWorkspaceProps) {
   const [query, setQuery] = useState("")
   const [selectedId, setSelectedId] = useState(pipelineId ?? pipelines[0]?.id ?? "")
   const [drafts, setDrafts] = useState<Record<string, PipelineAuthoring>>({})
@@ -43,6 +92,11 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, p
   const [newId, setNewId] = useState("")
   const [newName, setNewName] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [inspectorMode, setInspectorMode] = useState<"friendly" | "advanced" | "raw">("friendly")
+  const [componentName, setComponentName] = useState("")
+  const [generating, setGenerating] = useState(false)
+  const [validating, setValidating] = useState(false)
+  const [validation, setValidation] = useState<{ valid: boolean; message: string } | null>(null)
   const router = useRouter()
   useEffect(() => { if (pipelineId) setSelectedId(pipelineId) }, [pipelineId])
   const selected = pipelines.find((pipeline) => pipeline.id === selectedId) ?? pipelines[0]
@@ -57,7 +111,10 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, p
 
   if (!selected) return <div className="workspace-page" id="pipelines"><div className="empty-state page-empty"><div className="empty-icon"><Icon name="pipeline" /></div><h3>No pipelines yet</h3><p>Create your first pipeline to start moving data.</p></div></div>
 
-  const updateDraft = (next: PipelineAuthoring) => setDrafts((current) => ({ ...current, [selected.id]: next }))
+  const updateDraft = (next: PipelineAuthoring) => {
+    setDrafts((current) => ({ ...current, [selected.id]: next }))
+    setValidation(null)
+  }
   const beginEdit = () => { if (!step) return; setError(null); setDraftText(JSON.stringify(step.config, null, 2)); setEditing(true) }
   const applyEdit = () => {
     if (!authoring || !step) return
@@ -70,6 +127,79 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, p
         : { kind: step.kind }
       updateDraft(authoringFromComponent(authoring, component, config)); setEditing(false); setError(null)
     } catch (value) { setError(value instanceof Error ? value.message : "Invalid JSON") }
+  }
+
+  const updateSelectedConfig = (config: JsonObject) => {
+    if (!authoring || !step) return
+    const component: PipelineAuthoringComponent = step.kind === "processor"
+      ? { kind: "processor", index: selectedStep.kind === "processor" ? selectedStep.index : 0 }
+      : { kind: step.kind }
+    updateDraft(authoringFromComponent(authoring, component, config))
+    setError(null)
+  }
+
+  const generateComponent = async () => {
+    if (!authoring || !step || !componentName) return
+    setGenerating(true)
+    setError(null)
+    try {
+      const config = await createConnectComponentConfig({ data: { kind: step.kind, name: componentName } })
+      updateSelectedConfig(config)
+      setEditing(false)
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "Connect component generation failed")
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const validateWithConnect = async () => {
+    if (!authoring) return
+    setValidating(true)
+    setValidation(null)
+    setError(null)
+    try {
+      const result = await validateAuthoredPipelineServer({ data: { id: selected.id, authoring } })
+      setValidation({
+        valid: result.valid,
+        message: result.valid
+          ? result.restartRequired
+            ? "Connect accepted the draft. Publishing will restart this stream."
+            : "Connect accepted the draft. It is ready to publish."
+          : result.output,
+      })
+    } catch (value) {
+      setValidation({ valid: false, message: value instanceof Error ? value.message : "Connect validation failed" })
+    } finally {
+      setValidating(false)
+    }
+  }
+
+  const normalizeWithConnect = async () => {
+    if (!step) return
+    setValidating(true)
+    setError(null)
+    try {
+      const config = await normalizeConnectConfig({ data: { config: step.config } })
+      updateSelectedConfig(config)
+      setValidation({ valid: true, message: "Connect returned the normalized native configuration." })
+    } catch (value) {
+      setValidation({ valid: false, message: value instanceof Error ? value.message : "Connect normalization failed" })
+    } finally {
+      setValidating(false)
+    }
+  }
+
+  const applyRaw = () => {
+    if (!authoring) return
+    try {
+      const value = parse(draftText) as unknown
+      if (!isJsonObject(value)) throw new Error("Raw configuration must be a YAML/JSON object")
+      updateDraft(replacePipelineAuthoringConfig(authoring, value))
+      setError(null)
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "Invalid YAML/JSON")
+    }
   }
   const addProcessor = () => {
     if (!authoring) return
@@ -105,14 +235,18 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, p
 
   const discard = () => { setDrafts((current) => { const next = { ...current }; delete next[selected.id]; return next }); setEditing(false); setError(null) }
   const publish = async () => {
-    if (!authoring || !dirty) return
+    if (!authoring || !dirty || !validation?.valid) return
+    if (validation.message.includes("restart this stream") && !window.confirm("Publishing this change will restart the running Connect stream. Continue?")) return
     setSaving(true); setError(null)
     try {
-      await updateAuthoredPipelineServer({ data: { id: selected.id, authoring } })
+      await publishAuthoredPipelineServer({ data: { id: selected.id, authoring } })
       setDrafts((current) => { const next = { ...current }; delete next[selected.id]; return next })
       await router.invalidate({ sync: true })
-    } catch (value) { setError(value instanceof Error ? value.message : "Publish failed") }
-    finally { setSaving(false) }
+    } catch (value) {
+      const message = value instanceof Error ? value.message : "Publish failed"
+      setError(message)
+      setValidation({ valid: false, message })
+    } finally { setSaving(false) }
   }
 
   const create = async () => {
@@ -141,8 +275,9 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, p
     } catch (value) { setError(value instanceof Error ? value.message : "Delete failed") }
     finally { setDeleting(false) }
   }
+  const availableComponents = step ? workspaceComponents(components, step.kind) : []
   return <div className="workspace-page" id="pipelines">
-    <header className="page-header"><div><div className="breadcrumbs"><Link to="/pipelines">Pipelines</Link><b>/</b><strong>{authoring?.id ?? selected.id}</strong></div><h1>{authoring?.name ?? selected.name}</h1><p>Compose, publish, and observe this pipeline.</p></div><div className="header-actions"><button className="button button-secondary" type="button" onClick={() => setShowCreate(true)}>New pipeline</button><button className="button button-secondary" type="button" onClick={discard} disabled={!dirty}>Discard</button><button className="button button-primary" type="button" onClick={publish} disabled={!dirty || saving}>{saving ? "Publishing…" : "Publish"}</button></div></header>
+    <header className="page-header"><div><div className="breadcrumbs"><Link to="/pipelines">Pipelines</Link><b>/</b><strong>{authoring?.id ?? selected.id}</strong></div><h1>{authoring?.name ?? selected.name}</h1><p>Compose, publish, and observe this pipeline.</p></div><div className="header-actions"><button className="button button-secondary" type="button" onClick={() => setShowCreate(true)}>New pipeline</button><button className="button button-secondary" type="button" onClick={discard} disabled={!dirty}>Discard</button><button className="button button-secondary" type="button" onClick={() => void validateWithConnect()} disabled={!dirty || validating}>{validating ? "Validating…" : "Validate draft"}</button><button className="button button-primary" type="button" onClick={publish} disabled={!dirty || saving || !validation?.valid}>{saving ? "Publishing…" : "Publish"}</button></div></header>
     {dirty && <div className="unpublished-banner"><span className="status-dot" />This pipeline has unpublished changes</div>}
     <div className="metric-row"><div className="metric-card"><span>All pipelines</span><strong>{pipelines.length.toString().padStart(2, "0")}</strong><small>Managed by Porcelain</small></div><div className="metric-card"><span>Connected</span><strong>{pipelines.filter((p) => p.runtime.connected).length.toString().padStart(2, "0")}</strong><small><span className="status-dot online" />Runtime linked</small></div><div className="metric-card"><span>Active now</span><strong>{pipelines.filter((p) => p.runtime.active).length.toString().padStart(2, "0")}</strong><small>Across all streams</small></div><div className="runtime-card"><span className={`status-dot ${connectReady ? "online" : "offline"}`} /><div><strong>{!connectReachable ? "Runtime unreachable" : connectReady ? "Connect ready" : "Connect degraded"}</strong><small>Redpanda Connect → localhost:4195</small></div></div></div>
     <div className="content-grid">
@@ -155,7 +290,36 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, p
         <div className="detail-heading"><div className="pipeline-icon large"><Icon name="pipeline" /></div><div><span className="eyebrow">{step?.kind ?? "Pipeline"}</span><h2>{step?.label ?? "Pipeline details"}</h2></div></div>
         {error && <div className="error-banner" role="alert">{error}</div>}
         {step && <>
-          <div className="detail-section"><h3>Configuration</h3>{editing ? <textarea className="config-editor" aria-label="Step configuration" value={draftText} onChange={(event) => setDraftText(event.target.value)} spellCheck={false} /> : <pre className="config-preview">{JSON.stringify(step.config, null, 2)}</pre>}<div className="detail-actions">{step.kind === "processor" && <><button className="button button-secondary" type="button" onClick={() => moveSelectedProcessor(-1)} disabled={selectedStep.index === 0}>Move up</button><button className="button button-secondary" type="button" onClick={() => moveSelectedProcessor(1)} disabled={selectedStep.index === (authoring?.processors?.length ?? 1) - 1}>Move down</button><button className="button button-secondary" type="button" onClick={removeSelectedProcessor}>Delete processor</button></>}{step.kind === "buffer" && <button className="button button-secondary" type="button" onClick={toggleBuffer}>Remove buffer</button>}{step.kind !== "buffer" && !authoring?.buffer && <button className="button button-secondary" type="button" onClick={toggleBuffer}>Add buffer</button>}{editing ? <><button className="button button-primary" type="button" onClick={applyEdit}>Apply change</button><button className="button button-ghost" type="button" onClick={() => setEditing(false)}>Cancel</button></> : <button className="button button-secondary" type="button" onClick={beginEdit}>Edit configuration</button>}</div></div>
+          <div className="detail-section">
+            <h3>Connect component</h3>
+            {(step.kind === "input" || step.kind === "processor" || step.kind === "output") && <div className="detail-actions">
+              <select aria-label="Select Connect component" value={componentName} onChange={(event) => setComponentName(event.target.value)}>
+                <option value="">Select an installed component</option>
+                {availableComponents.map((component) => <option key={component.name} value={component.name}>{component.name}</option>)}
+              </select>
+              <button className="button button-secondary" type="button" onClick={() => void generateComponent()} disabled={!componentName || generating}>{generating ? "Generating…" : "Generate with Connect"}</button>
+            </div>}
+            {availableComponents.length === 0 && (step.kind === "input" || step.kind === "processor" || step.kind === "output") && <small>Connect component inventory is unavailable. The installed runtime must provide rpk.</small>}
+          </div>
+          <div className="detail-section">
+            <div className="inspector-tabs" role="tablist" aria-label="Configuration view">
+              {(["friendly", "advanced", "raw"] as const).map((mode) => <button key={mode} className={`button ${inspectorMode === mode ? "button-primary" : "button-secondary"}`} type="button" onClick={() => { setInspectorMode(mode); setEditing(false); if (mode === "raw" && authoring) setDraftText(stringify(authoringToConnectConfig(authoring), { lineWidth: 120 })) }}>{mode[0].toUpperCase() + mode.slice(1)}</button>)}
+            </div>
+            {inspectorMode === "friendly" && <FriendlyFields config={step.config} onChange={updateSelectedConfig} />}
+            {inspectorMode === "advanced" && <textarea className="config-editor" aria-label="Step configuration" value={editing ? draftText : JSON.stringify(step.config, null, 2)} onChange={(event) => { setDraftText(event.target.value); setEditing(true) }} spellCheck={false} />}
+            {inspectorMode === "raw" && <textarea className="config-editor" aria-label="Raw Connect YAML configuration" value={draftText || (authoring ? stringify(authoringToConnectConfig(authoring), { lineWidth: 120 }) : "")} onChange={(event) => setDraftText(event.target.value)} spellCheck={false} />}
+            {validation && <div className="detail-section" role="status"><strong>{validation.valid ? "Connect validation passed" : "Connect validation failed"}</strong><p>{validation.message}</p></div>}
+            <div className="detail-actions">
+              {step.kind === "processor" && <><button className="button button-secondary" type="button" onClick={() => moveSelectedProcessor(-1)} disabled={selectedStep.index === 0}>Move up</button><button className="button button-secondary" type="button" onClick={() => moveSelectedProcessor(1)} disabled={selectedStep.index === (authoring?.processors?.length ?? 1) - 1}>Move down</button><button className="button button-secondary" type="button" onClick={removeSelectedProcessor}>Delete processor</button></>}
+              {step.kind === "buffer" && <button className="button button-secondary" type="button" onClick={toggleBuffer}>Remove buffer</button>}
+              {step.kind !== "buffer" && !authoring?.buffer && <button className="button button-secondary" type="button" onClick={toggleBuffer}>Add buffer</button>}
+              {inspectorMode === "raw" && <button className="button button-primary" type="button" onClick={applyRaw}>Apply native config</button>}
+              {inspectorMode === "friendly" && <button className="button button-secondary" type="button" onClick={() => { beginEdit(); setInspectorMode("advanced") }}>Edit configuration</button>}
+              {inspectorMode === "advanced" && <><button className="button button-primary" type="button" onClick={applyEdit}>Apply change</button><button className="button button-ghost" type="button" onClick={() => setEditing(false)}>Cancel</button></>}
+              <button className="button button-secondary" type="button" onClick={() => void validateWithConnect()} disabled={validating}>{validating ? "Checking…" : "Validate draft with Connect"}</button>
+              <button className="button button-secondary" type="button" onClick={() => void normalizeWithConnect()} disabled={validating}>{validating ? "Working…" : "Normalize with Connect"}</button>
+            </div>
+          </div>
           <div className="detail-section"><h3>Runtime</h3><dl className="detail-list"><div><dt>Connection</dt><dd>{selected.runtime.connected ? "Redpanda Connect" : "Not connected"}</dd></div><div><dt>Stream</dt><dd className="mono">{selected.connectStreamId ?? "—"}</dd></div><div><dt>Status</dt><dd>{selected.runtime.connected ? (selected.runtime.active ? "Running" : "Stopped") : "Disconnected"}</dd></div><div><dt>Uptime</dt><dd>{selected.runtime.connected ? selected.runtime.uptime : "—"}</dd></div><div><dt>Messages received</dt><dd>{formatNumber(receivedMessages(selected))}</dd></div></dl></div><div className="detail-actions"><button className="button button-secondary" type="button" onClick={remove} disabled={deleting}>{deleting ? "Deleting…" : "Delete pipeline"}</button></div>
         </>}
       </aside>

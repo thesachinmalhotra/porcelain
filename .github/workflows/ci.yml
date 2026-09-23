@@ -47,6 +47,15 @@ jobs:
           docker logs porcelain-connect
           exit 1
 
+      - name: Install rpk and pin Connect CLI
+        run: |
+          curl -LO https://github.com/redpanda-data/redpanda/releases/latest/download/rpk-linux-amd64.zip
+          mkdir -p "$HOME/.local/bin"
+          unzip -o rpk-linux-amd64.zip -d "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/rpk" connect install --connect-version 4.109.0 --force
+          "$HOME/.local/bin/rpk" connect --version
+
       - name: Test
         run: npm test
 

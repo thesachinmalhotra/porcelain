@@ -132,6 +132,27 @@ describe("ConnectClient lifecycle operations", () => {
 
     await expect(client.getStreamStats("orders")).resolves.toEqual(stats)
   })
+
+  it("manages Connect resources through the native resources API", async () => {
+    const calls: Array<{ path: string; method: string }> = []
+    const client = createConnectClient({
+      baseUrl: "http://connect.test",
+      fetch: async (input, init) => {
+        calls.push({ path: String(input), method: init?.method ?? "GET" })
+        return new Response("", { status: 200 })
+      },
+    })
+
+    await client.createResource("cache", "orders-cache", { memory: {} })
+    await client.updateResource("cache", "orders-cache", { memory: { ttl: "1m" } })
+    await client.deleteResource("cache", "orders-cache")
+
+    expect(calls).toEqual([
+      { path: "http://connect.test/resources/cache/orders-cache", method: "POST" },
+      { path: "http://connect.test/resources/cache/orders-cache", method: "PUT" },
+      { path: "http://connect.test/resources/cache/orders-cache", method: "DELETE" },
+    ])
+  })
 })
 
 describe("ConnectClient availability", () => {
@@ -144,5 +165,23 @@ describe("ConnectClient availability", () => {
     })
 
     await expect(client.probe()).resolves.toEqual({ reachable: false, ready: false })
+  })
+})
+
+describe("ConnectRequestError details", () => {
+  it("preserves Streams API linting errors", async () => {
+    const client = createConnectClient({
+      baseUrl: "http://connect.test",
+      fetch: async () => new Response(JSON.stringify({
+        linting_errors: ["field foo not recognized", "missing output"],
+      }), {
+        status: 400,
+        headers: { "content-type": "application/json" },
+      }),
+    })
+    await expect(client.updateStream("orders", { input: { stdin: {} }, output: { drop: {} } })).rejects.toMatchObject({
+      status: 400,
+      details: { lintingErrors: ["field foo not recognized", "missing output"] },
+    })
   })
 })

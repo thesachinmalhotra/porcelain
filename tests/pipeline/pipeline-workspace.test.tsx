@@ -10,6 +10,8 @@ afterEach(() => {
 })
 
 const mocks = vi.hoisted(() => ({
+  validateAuthoredPipelineServer: vi.fn().mockResolvedValue({ valid: true, lintErrors: [], output: "ok", restartRequired: false }),
+  publishAuthoredPipelineServer: vi.fn().mockResolvedValue({ pipeline: { id: "orders" }, restartRequired: false, runtime: { connected: true, active: true, uptime: 42, uptimeStr: "42s", stats: {} } }),
   updateAuthoredPipelineServer: vi.fn().mockResolvedValue("orders"),
   createAuthoredPipelineServer: vi.fn().mockResolvedValue("new-pipeline"),
   deletePipeline: vi.fn().mockResolvedValue(undefined),
@@ -23,6 +25,8 @@ vi.mock("@tanstack/react-router", () => ({
 }))
 
 vi.mock("../../src/features/pipelines/server", () => ({
+  validateAuthoredPipelineServer: mocks.validateAuthoredPipelineServer,
+  publishAuthoredPipelineServer: mocks.publishAuthoredPipelineServer,
   updateAuthoredPipelineServer: mocks.updateAuthoredPipelineServer,
   createAuthoredPipelineServer: mocks.createAuthoredPipelineServer,
   deletePipeline: mocks.deletePipeline,
@@ -129,9 +133,13 @@ describe("PipelineWorkspace", () => {
     const editor = screen.getByRole("textbox", { name: "Step configuration" })
     fireEvent.change(editor, { target: { value: '{"label":"normalize-v2","mapping":"root = this"}' } })
     fireEvent.click(screen.getByRole("button", { name: "Apply change" }))
+    fireEvent.click(screen.getByRole("button", { name: "Validate draft" }))
+    await waitFor(() => expect(mocks.validateAuthoredPipelineServer).toHaveBeenCalledWith({
+      data: { id: "orders", authoring: expect.objectContaining({ id: "orders" }) },
+    }))
     fireEvent.click(screen.getByRole("button", { name: "Publish" }))
 
-    await waitFor(() => expect(mocks.updateAuthoredPipelineServer).toHaveBeenCalledWith({
+    await waitFor(() => expect(mocks.publishAuthoredPipelineServer).toHaveBeenCalledWith({
       data: {
         id: "orders",
         authoring: expect.objectContaining({
