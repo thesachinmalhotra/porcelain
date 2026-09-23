@@ -1,6 +1,5 @@
 import { execFile } from "node:child_process"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
 import { parse, stringify } from "yaml"
@@ -109,7 +108,7 @@ async function withTempConfig(
   config: NativeConnectConfig,
   run: (path: string) => Promise<ConnectCommandResult>,
 ): Promise<ConnectCommandResult> {
-  const directory = await mkdtemp(join(tmpdir(), "porcelain-connect-"))
+  const directory = await mkdtemp(join(process.cwd(), ".porcelain-connect-"))
   const path = join(directory, "config.yaml")
   try {
     await writeFile(path, serializeNativeConfig(config), "utf8")
