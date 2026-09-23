@@ -2,6 +2,9 @@ import { createFileRoute } from "@tanstack/react-router"
 import { useMemo, useState } from "react"
 import { getComponents, type ComponentsFilter } from "../features/components/server"
 
+type ComponentsWorkspace = Awaited<ReturnType<typeof getComponents>>
+type ConnectComponent = ComponentsWorkspace["components"][number]
+
 export const Route = createFileRoute("/components")({
   loader: () => getComponents(),
   component: Components,
@@ -24,7 +27,7 @@ function Components() {
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase()
-    return workspace.components.filter((component) => {
+    return workspace.components.filter((component: ConnectComponent) => {
       const matchesKind = kind === "all" || component.kinds.includes(kind)
       return matchesKind && (!normalized || component.name.toLowerCase().includes(normalized))
     })
@@ -70,7 +73,7 @@ function Components() {
         </div>
 
         <div className="catalog-grid">
-          {filtered.map((component) => (
+          {filtered.map((component: ConnectComponent) => (
             <article className="catalog-card" key={component.name}>
               <span>{component.kinds.join(" · ")}</span>
               <strong>{component.name}</strong>
