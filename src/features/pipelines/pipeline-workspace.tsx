@@ -312,6 +312,8 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
     }
   }
 
+  const availableComponents = step ? workspaceComponents(components, step.kind) : []
+
   const openComponentPicker = () => {
     setComponentQuery("")
     setShowComponentPicker(true)
