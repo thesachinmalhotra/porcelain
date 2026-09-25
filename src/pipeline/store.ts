@@ -139,7 +139,7 @@ export function createPipelineStore(filePath = resolve(process.cwd(), ".porcelai
         id,
         ...definition,
         desiredRevisionId: revision.id,
-        connectStreamId: state.pipelines[index].connectStreamId,
+        connectStreamId: state.pipelines[index].connectStreamId ?? id,
       }
       state.pipelines[index] = updated
       state.revisions.push(revision)

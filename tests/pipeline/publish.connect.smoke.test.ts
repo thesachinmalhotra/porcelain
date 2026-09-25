@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { ConnectRequestError, createConnectClient } from "../../src/runtime/connect/client"
 import { publishPipelineDraft } from "../../src/pipeline/publish"
+import { createPipelineLifecycle } from "../../src/pipeline/lifecycle"
 import { createPipelineStore } from "../../src/pipeline/store"
 
 const run = describe.runIf(process.env.CI === "true")
@@ -35,7 +36,7 @@ run("SAC-46 real Connect publish", () => {
   it("creates a missing stream through POST and projects runtime stats", async () => {
     const id = "sac-46-create-" + Date.now(); streamIds.push(id)
     const store = await createStore(id); const client = createConnectClient({ baseUrl })
-    const result = await publishPipelineDraft({ store, client, authoring: {
+    const result = await publishPipelineDraft({ lifecycle: createPipelineLifecycle({ store, client }), client, authoring: {
       id, name: "Smoke pipeline", metadata: { source: "sac-46-smoke" },
       input: { generate: { interval: "100ms", mapping: 'root = "v1"', count: 0 } }, output: { drop: {} },
     } })
@@ -49,9 +50,9 @@ run("SAC-46 real Connect publish", () => {
   it("updates an existing stream through PUT and observes the restarted runtime", async () => {
     const id = "sac-46-update-" + Date.now(); streamIds.push(id)
     const store = await createStore(id); const client = createConnectClient({ baseUrl })
-    const first = await publishPipelineDraft({ store, client, authoring: { id, name: "Smoke pipeline", metadata: { source: "sac-46-smoke" }, input: { generate: { interval: "100ms", mapping: 'root = "v1"', count: 0 } }, output: { drop: {} } } })
+    const first = await publishPipelineDraft({ lifecycle: createPipelineLifecycle({ store, client }), client, authoring: { id, name: "Smoke pipeline", metadata: { source: "sac-46-smoke" }, input: { generate: { interval: "100ms", mapping: 'root = "v1"', count: 0 } }, output: { drop: {} } } })
     await new Promise((resolve) => setTimeout(resolve, 1200)); const before = await client.getStream(id)
-    const second = await publishPipelineDraft({ store, client, authoring: { id, name: "Smoke pipeline", metadata: { source: "sac-46-smoke" }, input: { generate: { interval: "100ms", mapping: 'root = "v2"', count: 0 } }, output: { drop: {} } } })
+    const second = await publishPipelineDraft({ lifecycle: createPipelineLifecycle({ store, client }), client, authoring: { id, name: "Smoke pipeline", metadata: { source: "sac-46-smoke" }, input: { generate: { interval: "100ms", mapping: 'root = "v2"', count: 0 } }, output: { drop: {} } } })
     expect(first.restartRequired).toBe(false); expect(second.restartRequired).toBe(true)
     expect(second.runtime.connected).toBe(true); expect(second.runtime.active).toBe(true)
     expect(second.runtime.uptime).toBeLessThan(before.uptime)

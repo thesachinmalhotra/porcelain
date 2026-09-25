@@ -450,7 +450,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
               <div className="topology-track">
                 {steps.map((item, index) => (
                   <div className="topology-node-group" key={item.id}>
-                    <button className={`topology-node${step?.id === item.id ? " selected" : ""}`} type="button" onClick={() => selectStep(item)}>
+                    <button aria-label={item.label} className={`topology-node${step?.id === item.id ? " selected" : ""}`} type="button" onClick={() => selectStep(item)}>
                       <span className="topology-node-icon"><Icon name={item.kind === "processor" ? "layers" : item.kind === "input" ? "database" : item.kind === "output" ? "arrow" : "grid"} /></span>
                       <span className="topology-node-copy">
                         <span className="topology-node-kind">{item.kind}</span>

@@ -290,15 +290,28 @@ export const createAuthoredPipelineServer = createServerFn({ method: "POST" })
 
 export const validateAuthoredPipelineServer = createServerFn({ method: "POST" })
   .validator(validateAuthoredPipeline)
-  .handler(async ({ data }) => validatePipelineDraft(data.authoring, connectClient()))
+  .handler(async ({ data }) => {
+    const store = createPipelineStore()
+    const existing = await store.get(data.id)
+    return validatePipelineDraft(data.authoring, connectClient(), existing?.connectStreamId ?? data.id)
+  })
 
 export const publishAuthoredPipelineServer = createServerFn({ method: "POST" })
   .validator(validateAuthoredPipeline)
-  .handler(async ({ data }) => publishPipelineDraft({
-    store: createPipelineStore(),
-    client: connectClient(),
-    authoring: data.authoring,
-  }))
+  .handler(async ({ data }) => {
+    const store = createPipelineStore()
+    const existing = await store.get(data.id)
+    return publishPipelineDraft({
+      lifecycle: createPipelineLifecycle({
+        store,
+        client: connectClient(),
+        activity: createActivityStore(),
+      }),
+      client: connectClient(),
+      authoring: data.authoring,
+      connectStreamId: existing?.connectStreamId ?? data.id,
+    })
+  })
 
 export const updateAuthoredPipelineServer = publishAuthoredPipelineServer
 

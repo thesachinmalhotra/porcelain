@@ -56,6 +56,7 @@ function createFakes() {
     delete: async (id: string) => { calls.push("store.delete:" + id); stored = null },
   }
   const client = {
+    getStream: async (_id: string) => ({ active: true, uptime: 1, uptime_str: "1s", config: desiredConfig }),
     createStream: async (id: string, config: typeof desiredConfig) => {
       calls.push("connect.create:" + id)
       expect(config).toEqual(desiredConfig)
@@ -88,6 +89,86 @@ describe("createPipelineLifecycle", () => {
   })
 })
 
+describe("pipeline publish lifecycle", () => {
+  it("updates an existing Connect stream through the single lifecycle mutation boundary", async () => {
+    const { calls, store, client, setStored } = createFakes()
+    setStored({ id: "orders", name: "Orders", metadata: {}, desiredRevisionId: "revision-1", connectStreamId: "orders" })
+    const lifecycle = createPipelineLifecycle({ store, client })
+
+    await expect(lifecycle.publishPipeline("orders", {
+      name: "Orders v2",
+      metadata: {},
+      desiredConfig: { input: { stdin: {} }, output: { drop: {} } },
+    })).resolves.toMatchObject({ operation: "updated" })
+
+    expect(calls).toEqual(["store.get:orders", "connect.update:orders", "store.updateWithRevision:orders"])
+  })
+
+  it("recreates a missing Connect stream without advancing durable state first", async () => {
+    const { calls, store, client, setStored } = createFakes()
+    setStored({ id: "orders", name: "Orders", metadata: {}, desiredRevisionId: "revision-1", connectStreamId: "orders" })
+    client.getStream = async () => {
+      calls.push("connect.get:orders")
+      throw Object.assign(new Error("missing"), { status: 404 })
+    }
+    const lifecycle = createPipelineLifecycle({ store, client })
+
+    await expect(lifecycle.publishPipeline("orders", {
+      name: "Orders v2",
+      metadata: {},
+      desiredConfig,
+    })).resolves.toMatchObject({ operation: "created" })
+
+    expect(calls).toEqual([
+      "store.get:orders",
+      "connect.get:orders",
+      "connect.create:orders",
+      "store.updateWithRevision:orders",
+    ])
+  })
+
+  it("falls back to create when an existing stream disappears during update", async () => {
+    const { calls, store, client, setStored } = createFakes()
+    setStored({ id: "orders", name: "Orders", metadata: {}, desiredRevisionId: "revision-1", connectStreamId: "orders" })
+    client.updateStream = async () => {
+      calls.push("connect.update:orders")
+      throw Object.assign(new Error("stream disappeared"), { status: 404 })
+    }
+    const lifecycle = createPipelineLifecycle({ store, client })
+
+    await expect(lifecycle.publishPipeline("orders", {
+      name: "Orders v2",
+      metadata: {},
+      desiredConfig,
+    })).resolves.toMatchObject({ operation: "created" })
+
+    expect(calls).toEqual([
+      "store.get:orders",
+      "connect.update:orders",
+      "connect.create:orders",
+      "store.updateWithRevision:orders",
+    ])
+  })
+  it("propagates a non-404 stream lookup failure without mutating durable state", async () => {
+    const { calls, store, client, setStored } = createFakes()
+    const existing = { id: "orders", name: "Orders", metadata: {}, desiredRevisionId: "revision-1", connectStreamId: "orders" }
+    setStored(existing)
+    client.getStream = async () => {
+      calls.push("connect.get:orders")
+      throw Object.assign(new Error("Connect unavailable"), { status: 503 })
+    }
+    const lifecycle = createPipelineLifecycle({ store, client })
+
+    await expect(lifecycle.publishPipeline("orders", {
+      name: "Orders v2",
+      metadata: {},
+      desiredConfig,
+    })).rejects.toThrow("Connect unavailable")
+
+    expect(calls).toEqual(["store.get:orders", "connect.get:orders"])
+    await expect(store.get("orders")).resolves.toEqual(existing)
+  })
+})
 describe("pipeline lifecycle failure semantics", () => {
   it("does not create a revision when Connect create fails", async () => {
     const { calls, store, client } = createFakes()
