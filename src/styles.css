@@ -57,27 +57,7 @@ svg { width: 17px; height: 17px; flex: none; }
 
 
 
-/* -------------------------------------------------------------------------- */
-/* Porcelain workspace refresh — dense, quiet, developer-first                 */
-/* -------------------------------------------------------------------------- */
-
-:root {
-  color-scheme: dark;
-  --bg: #0b0c0e;
-  --surface: #101215;
-  --surface-2: #14161a;
-  --surface-3: #181b20;
-  --line: #25282e;
-  --line-strong: #30343b;
-  --text: #e8e9ec;
-  --muted: #8a8e97;
-  --faint: #60646d;
-  --accent: #8da2ff;
-  --accent-soft: #202744;
-  --success: #5fd394;
-  --warning: #d5a85c;
-  --danger: #df7c88;
-}
+/* Workspace refresh root superseded by UI-02 token contract. */
 
 body {
   min-width: 1180px;
@@ -455,3 +435,255 @@ body {
   .editor-shell { grid-template-columns: 180px minmax(430px, 1fr) 310px; }
   .pipeline-header-actions .button-ghost:first-child { display: none; }
 }
+
+
+/* -------------------------------------------------------------------------- */
+/* UI-02 — Porcelain visual contract                                          */
+/*                                                                            */
+/* Neutral surfaces carry hierarchy. Chroma is semantic: lime = primary      */
+/* action; green/amber/red = runtime state. No blue/purple gradients.        */
+/* -------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: dark;
+
+  --color-void: #08090a;
+  --color-carbon: #0f1011;
+  --color-obsidian: #161718;
+  --color-slate: #23252a;
+
+  --color-graphite: #23252a;
+  --color-smoke: #383b3f;
+  --color-ash: #62666d;
+  --color-fog: #8a8f98;
+  --color-mist: #d0d6e0;
+  --color-bone: #e5e5e6;
+  --color-paper: #ffffff;
+
+  --color-success: #3fa46a;
+  --color-warning: #b58a4d;
+  --color-danger: #c9636c;
+
+  --color-accent: #d9e91f;
+  --color-accent-ink: #08090a;
+  --color-accent-soft: #222706;
+
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* 4px base rhythm: 4 / 8 / 12 / 16 / 20 / 24 / 32 / 48 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  --border: 1px solid var(--color-graphite);
+  --border-strong: 1px solid var(--color-smoke);
+  --inset-border: inset 0 0 0 1px var(--color-graphite);
+  --overlay-shadow: 0 20px 60px rgb(0 0 0 / 45%);
+  --focus-ring: 0 0 0 2px rgb(229 229 230 / 14%);
+  --transition-fast: 120ms ease;
+  --transition-normal: 160ms ease;
+
+  /* Compatibility aliases for the existing workspace layer. */
+  --bg: var(--color-void);
+  --surface: var(--color-carbon);
+  --surface-2: var(--color-obsidian);
+  --surface-3: var(--color-slate);
+  --line: var(--color-graphite);
+  --line-strong: var(--color-smoke);
+  --text: var(--color-mist);
+  --muted: var(--color-fog);
+  --faint: var(--color-ash);
+  --accent: var(--color-accent);
+  --accent-soft: var(--color-accent-soft);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --danger: var(--color-danger);
+
+  font-family: var(--font-sans);
+  color: var(--color-mist);
+  background: var(--color-void);
+  font-synthesis: none;
+}
+
+html, body { background: var(--color-void); }
+body { min-width: 1180px; background-image: none; }
+.app-shell { background: var(--color-void); }
+.sidebar { background: var(--color-carbon); border-right-color: var(--color-graphite); }
+
+.brand-mark {
+  color: var(--color-paper);
+  background: var(--color-obsidian);
+  background-image: none;
+  border-color: var(--color-smoke);
+  box-shadow: none;
+}
+
+.search-button, .input-search {
+  color: var(--color-fog);
+  background: var(--color-obsidian);
+  border-color: var(--color-graphite);
+}
+.search-button:hover, .input-search:focus-within { border-color: var(--color-smoke); }
+
+.nav-item { color: var(--color-fog); transition: background var(--transition-fast), color var(--transition-fast); }
+.nav-item:hover { color: var(--color-mist); background: rgb(255 255 255 / 3%); }
+.nav-item.active { color: var(--color-paper); background: var(--color-slate); }
+.nav-item.active i { background: var(--color-accent); }
+
+.connect-indicator { background: var(--color-obsidian); border-color: var(--color-graphite); }
+.runtime-badge {
+  color: var(--color-success);
+  border-color: rgb(63 164 106 / 35%);
+  background: rgb(63 164 106 / 7%);
+}
+.avatar { color: var(--color-mist); background: var(--color-slate); }
+
+.page-header, .pipeline-header { border-bottom-color: var(--color-graphite); }
+.page-header h1, .pipeline-title h1 { color: var(--color-paper); }
+.page-header p, .pipeline-subtitle { color: var(--color-fog); }
+
+.button {
+  border: var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-mist);
+  background: transparent;
+  box-shadow: none;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+.button:hover { filter: none; background: rgb(255 255 255 / 4%); }
+.button:focus-visible, .icon-button:focus-visible, .nav-item:focus-visible, .search-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.button-primary {
+  color: var(--color-accent-ink);
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  box-shadow: none;
+}
+.button-primary:hover { color: var(--color-accent-ink); background: #e4f222; }
+.button-secondary { background: var(--color-obsidian); }
+.button-ghost { color: var(--color-fog); border-color: transparent; }
+.button-ghost:hover { color: var(--color-mist); background: rgb(255 255 255 / 4%); }
+.button-danger-ghost { color: var(--color-danger); }
+.button-danger-ghost:hover { color: #dc7a82; background: rgb(201 99 108 / 7%); }
+
+.icon-button { color: var(--color-fog); background: var(--color-obsidian); border-color: var(--color-graphite); }
+.icon-button:hover { color: var(--color-mist); background: var(--color-slate); }
+
+.panel, .metric-card, .runtime-card, .modal, .component-picker {
+  border-color: var(--color-graphite);
+  border-radius: var(--radius-lg);
+  background: var(--color-carbon);
+  box-shadow: none;
+}
+.panel { box-shadow: var(--inset-border); }
+
+.panel-header, .editor-panel-heading, .inspector-header, .topology-footer,
+.runtime-stat, .inspector-tabs, .inspector-section, .inspector-actions, .component-summary {
+  border-color: var(--color-graphite);
+}
+.panel-header h2, .editor-panel-heading h2, .inspector-heading h2 { color: var(--color-mist); }
+.panel-header p, .section-intro span, .component-summary-label, .eyebrow { color: var(--color-ash); }
+
+.pipeline-row.selected, .workspace-pipeline-row.selected {
+  border-color: var(--color-smoke);
+  background: var(--color-obsidian);
+}
+.pipeline-row:hover, .workspace-pipeline-row:hover, .component-picker-row:hover {
+  background: rgb(255 255 255 / 3%);
+}
+
+.pipeline-icon, .pipeline-row-mark, .topology-node-icon, .activity-icon {
+  color: var(--color-mist);
+  background: var(--color-obsidian);
+  border-color: var(--color-graphite);
+}
+
+.status-running { color: var(--color-success); }
+.status-running .status-dot, .status-dot.online { background: var(--color-success); }
+.status-dot.online { box-shadow: 0 0 0 3px rgb(63 164 106 / 12%); }
+.status-inactive { color: var(--color-warning); }
+.status-inactive .status-dot { background: var(--color-warning); }
+.status-disconnected { color: var(--color-danger); }
+.status-disconnected .status-dot, .status-dot.offline { background: var(--color-danger); }
+.status-dot.offline { box-shadow: 0 0 0 3px rgb(201 99 108 / 12%); }
+
+.topology-canvas {
+  background-color: var(--color-void);
+  /* Functional dot grid; not an atmospheric gradient. */
+  background-image: radial-gradient(var(--color-graphite) 1px, transparent 1px);
+}
+.topology-node {
+  border-color: var(--color-smoke);
+  border-radius: var(--radius-lg);
+  color: var(--color-mist);
+  background: var(--color-obsidian);
+}
+.topology-node:hover { border-color: var(--color-ash); background: #1b1c1e; }
+.topology-node.selected {
+  border-color: var(--color-bone);
+  background: #1a1b1c;
+  box-shadow: var(--inset-border);
+}
+.topology-node-icon { color: var(--color-mist); background: var(--color-slate); }
+.topology-connector > span { background: var(--color-smoke); }
+.insert-button { color: var(--color-fog); border-color: var(--color-smoke); background: var(--color-carbon); }
+.insert-button:hover { color: var(--color-paper); border-color: var(--color-ash); background: var(--color-obsidian); }
+.text-button { color: var(--color-mist); }
+.text-button:hover { color: var(--color-paper); }
+
+.draft-pill, .workspace-alert.draft {
+  border-color: rgb(181 138 77 / 35%);
+  color: #c8a66c;
+  background: rgb(181 138 77 / 7%);
+}
+.workspace-alert { border-color: var(--color-graphite); color: var(--color-mist); background: var(--color-carbon); }
+.workspace-alert.success, .validation-card.valid {
+  border-color: rgb(63 164 106 / 35%);
+  color: #7bc095;
+  background: rgb(63 164 106 / 7%);
+}
+.workspace-alert.error, .validation-card {
+  border-color: rgb(201 99 108 / 35%);
+  color: #d4878e;
+  background: rgb(201 99 108 / 7%);
+}
+
+.workspace-search, .inspector-section .native-field, .config-editor,
+.modal input, .empty-create-form input, .settings-field input {
+  border-color: var(--color-graphite);
+  background: var(--color-void);
+  color: var(--color-mist);
+}
+.workspace-search:focus-within, .config-editor:focus, .modal input:focus,
+.empty-create-form input:focus, .settings-field input:focus {
+  border-color: var(--color-smoke);
+  box-shadow: var(--focus-ring);
+}
+.workspace-search input::placeholder, .search-button .search-hint,
+.workspace-search kbd, .picker-count { color: var(--color-ash); }
+
+.config-dot { background: var(--color-mist); box-shadow: 0 0 0 3px var(--color-slate); }
+.empty-icon { color: var(--color-mist); background: var(--color-obsidian); border-color: var(--color-graphite); }
+
+.runtime-stat strong, .detail-list dd, .pipeline-main code, .mono, .component-picker-row strong {
+  font-family: var(--font-mono);
+}
+.runtime-stat strong { color: var(--color-mist); }
+
+.modal, .component-picker { box-shadow: var(--overlay-shadow); }
