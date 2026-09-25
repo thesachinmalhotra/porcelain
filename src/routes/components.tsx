@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { useMemo, useState } from "react"
 import { getComponents, type ComponentsFilter } from "../features/components/server"
+import { ViewHeader } from "../components/view-header"
 
 type ComponentsWorkspace = Awaited<ReturnType<typeof getComponents>>
 type ConnectComponent = ComponentsWorkspace["components"][number]
@@ -35,13 +36,7 @@ function Components() {
 
   return (
     <div className="workspace-page" id="components">
-      <header className="page-header">
-        <div>
-          <span className="eyebrow">Manage</span>
-          <h1>Connect components</h1>
-          <p>Live component inventory discovered from the installed Redpanda Connect runtime.</p>
-        </div>
-      </header>
+      <ViewHeader eyebrow="Discover" title="Connect components" description="Live component inventory discovered from the installed Redpanda Connect runtime." />
 
       <section className="panel">
         <div className="panel-header">

@@ -1,24 +1,11 @@
-import type { ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { Link } from "@tanstack/react-router"
 
 export type IconName =
-  | "grid"
-  | "pipeline"
-  | "activity"
-  | "settings"
-  | "search"
-  | "plus"
-  | "chevron"
-  | "database"
-  | "pulse"
-  | "layers"
-  | "terminal"
-  | "check"
-  | "warning"
-  | "more"
-  | "arrow"
+  | "grid" | "pipeline" | "activity" | "settings" | "search" | "plus" | "chevron"
+  | "database" | "pulse" | "layers" | "terminal" | "check" | "warning" | "more" | "arrow"
 
-function Icon({ name }: { name: IconName }) {
+export function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, string> = {
     grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
     pipeline: "M5 5h4v4H5zM15 15h4v4h-4zM9 7h6m0 0v8m0-8 3 3M9 17H7m0 0v-5m0 0 3-3",
@@ -44,81 +31,109 @@ function Icon({ name }: { name: IconName }) {
   )
 }
 
-const navItems = [
-  { label: "Overview", icon: "grid" as const, to: "/overview" },
-  { label: "Pipelines", icon: "pipeline" as const, to: "/pipelines" },
-  { label: "Runtime", icon: "pulse" as const, to: "/runtime" },
-  { label: "Activity", icon: "activity" as const, to: "/activity" },
-]
-
-const manageItems = [
-  { label: "Components", icon: "layers" as const, to: "/components" },
-  { label: "Event schemas", icon: "database" as const, to: "/schemas" },
-]
-
-function activePath(to: string) {
-  return typeof window !== "undefined" && (window.location.pathname === to || window.location.pathname.startsWith(to + "/"))
-}
+const navGroups = [
+  {
+    label: "Operate",
+    items: [
+      { label: "Overview", icon: "grid" as const, to: "/overview" },
+      { label: "Pipelines", icon: "pipeline" as const, to: "/pipelines" },
+      { label: "Runtime", icon: "pulse" as const, to: "/runtime" },
+      { label: "Activity", icon: "activity" as const, to: "/activity" },
+    ],
+  },
+  {
+    label: "Discover",
+    items: [
+      { label: "Components", icon: "layers" as const, to: "/components" },
+      { label: "Event schemas", icon: "database" as const, to: "/schemas" },
+    ],
+  },
+] as const
 
 export function AppShell({ children }: Readonly<{ children?: ReactNode }>) {
+  const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    setCollapsed(window.localStorage.getItem("porcelain.sidebar.collapsed") === "true")
+  }, [])
+
+  const toggleCollapsed = () => {
+    setCollapsed((value) => {
+      const next = !value
+      window.localStorage.setItem("porcelain.sidebar.collapsed", String(next))
+      return next
+    })
+  }
+
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="workspace-switcher">
-          <div className="brand-mark">P</div>
-          <div className="workspace-copy">
-            <h1>Porcelain</h1>
-            <span>Connect workspace</span>
+    <div className={"app-shell" + (collapsed ? " sidebar-collapsed" : "")}>
+      <aside className="app-sidebar">
+        <div className="sidebar-topbar">
+          <div className="workspace-identity">
+            <span className="brand-mark">P</span>
+            <span className="workspace-copy">
+              <strong>Porcelain</strong>
+              <small>Connect workspace</small>
+            </span>
           </div>
-          <Icon name="chevron" />
+          <button
+            className="sidebar-collapse"
+            type="button"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
+            onClick={toggleCollapsed}
+          >
+            <Icon name="chevron" />
+          </button>
         </div>
 
-        <Link className="search-button" to="/pipelines">
+        <Link className="search-button" to="/pipelines" title={collapsed ? "Find a pipeline" : undefined}>
           <Icon name="search" />
-          <span>Find a pipeline</span>
-          <span className="search-hint">/</span>
+          <span className="search-label">Find a pipeline</span>
         </Link>
 
-        <nav aria-label="Primary navigation" className="primary-nav">
-          <p className="nav-label">Operate</p>
-          {navItems.map((item) => (
-            <Link className={"nav-item" + (activePath(item.to) ? " active" : "")} to={item.to} key={item.label}>
-              <Icon name={item.icon} />
-              <span>{item.label}</span>
-            </Link>
-          ))}
-
-          <p className="nav-label section-label">Discover</p>
-          {manageItems.map((item) => (
-            <Link className={"nav-item" + (activePath(item.to) ? " active" : "")} to={item.to} key={item.label}>
-              <Icon name={item.icon} />
-              <span>{item.label}</span>
-            </Link>
+        <nav aria-label="Primary navigation" className="app-navigation">
+          {navGroups.map((group) => (
+            <div className="nav-group" key={group.label}>
+              <p className="nav-label">{group.label}</p>
+              {group.items.map((item) => (
+                <Link
+                  aria-label={collapsed ? item.label : undefined}
+                  activeProps={{ className: "nav-item active" }}
+                  inactiveProps={{ className: "nav-item" }}
+                  key={item.label}
+                  to={item.to}
+                  title={collapsed ? item.label : undefined}
+                >
+                  <Icon name={item.icon} />
+                  <span className="nav-item-label">{item.label}</span>
+                </Link>
+              ))}
+            </div>
           ))}
         </nav>
 
         <div className="sidebar-footer">
-          <Link className="connect-indicator" to="/runtime">
+          <Link className="connect-indicator" to="/runtime" title={collapsed ? "Redpanda Connect - Local runtime" : undefined}>
             <span className="status-dot online" />
-            <div>
+            <span className="connect-copy">
               <strong>Redpanda Connect</strong>
               <small>Local runtime</small>
-            </div>
-            <span className="runtime-badge">Inspect</span>
+            </span>
+            <span className="runtime-badge">Live</span>
           </Link>
 
-          <Link className={"nav-item" + (activePath("/settings") ? " active" : "")} to="/settings">
+          <Link activeProps={{ className: "nav-item active" }} inactiveProps={{ className: "nav-item" }} to="/settings" title={collapsed ? "Settings" : undefined}>
             <Icon name="settings" />
-            <span>Settings</span>
+            <span className="nav-item-label">Settings</span>
           </Link>
 
           <div className="user-row">
             <span className="avatar">SM</span>
-            <div>
+            <span className="user-copy">
               <strong>Sachin Malhotra</strong>
               <small>Owner</small>
-            </div>
-            <Icon name="chevron" />
+            </span>
           </div>
         </div>
       </aside>
@@ -127,5 +142,3 @@ export function AppShell({ children }: Readonly<{ children?: ReactNode }>) {
     </div>
   )
 }
-
-export { Icon }
