@@ -34,7 +34,7 @@ jobs:
 
       - name: Start Redpanda Connect
         run: |
-          docker run -d --name porcelain-connect -p 4195:4195 docker.redpanda.com/redpandadata/connect:4.109.0 streams
+          docker run -d --name porcelain-connect -p 4195:4195 docker.redpanda.com/redpandadata/connect:4.111.0 streams --bind-http
           for i in {1..30}; do
             if curl --fail --silent http://127.0.0.1:4195/ready >/dev/null; then
               exit 0
@@ -50,7 +50,7 @@ jobs:
           mkdir -p "$HOME/.local/bin"
           unzip -o rpk-linux-amd64.zip -d "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          "$HOME/.local/bin/rpk" connect install --connect-version 4.109.0 --force
+          "$HOME/.local/bin/rpk" connect install --connect-version 4.111.0 --force
           "$HOME/.local/bin/rpk" connect --version
 
       - name: Verify

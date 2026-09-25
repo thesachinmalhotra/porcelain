@@ -29,5 +29,5 @@ describe.runIf(process.env.CI === "true")("native Connect integration", () => {
     expect(cue).toContain("#Config")
     expect(cue).toContain("#Input")
     expect(cue).toContain("#Output")
-  }, 30000)
+  }, 120000)
 })

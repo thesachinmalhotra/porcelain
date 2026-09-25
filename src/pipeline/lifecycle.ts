@@ -9,6 +9,7 @@ type PipelineStore = {
   delete(id: string): Promise<void>
 }
 type ConnectClient = {
+  getStream(id: string): Promise<unknown>
   createStream(id: string, config: ConnectStreamConfig): Promise<void>
   updateStream(id: string, config: ConnectStreamConfig): Promise<void>
   deleteStream(id: string): Promise<void>
@@ -24,6 +25,16 @@ type ActivityStore = {
 type PipelineLifecycleDependencies = { store: PipelineStore; client: ConnectClient; activity?: ActivityStore }
 
 export function createPipelineLifecycle({ store, client, activity }: PipelineLifecycleDependencies) {
+  async function streamExists(id: string): Promise<boolean> {
+    try {
+      await client.getStream(id)
+      return true
+    } catch (error) {
+      if (error instanceof Error && "status" in error && error.status === 404) return false
+      throw error
+    }
+  }
+
   return {
     async createPipeline(definition: PipelineCreate): Promise<PipelineDefinition> {
       const connectStreamId = definition.id
@@ -41,9 +52,8 @@ export function createPipelineLifecycle({ store, client, activity }: PipelineLif
     async updatePipeline(id: string, update: PipelineUpdate): Promise<PipelineDefinition> {
       const existing = await store.get(id)
       if (!existing) throw new Error("Pipeline not found: " + id)
-      if (existing.connectStreamId) {
-        await client.updateStream(existing.connectStreamId, update.desiredConfig)
-      }
+      if (!existing.connectStreamId) throw new Error("Pipeline is not linked to a Redpanda Connect stream: " + id)
+      await client.updateStream(existing.connectStreamId, update.desiredConfig)
       const pipeline = await store.updateWithRevision(id, update)
       await activity?.append({
         type: "pipeline.updated",
@@ -52,6 +62,37 @@ export function createPipelineLifecycle({ store, client, activity }: PipelineLif
         detail: "Pipeline configuration published",
       })
       return pipeline
+    },
+
+    async publishPipeline(id: string, update: PipelineUpdate): Promise<{ pipeline: PipelineDefinition; connectStreamId: string; operation: "created" | "updated" }> {
+      const existing = await store.get(id)
+      if (!existing) throw new Error("Pipeline not found: " + id)
+
+      const connectStreamId = existing.connectStreamId ?? existing.id
+      const exists = await streamExists(connectStreamId)
+      let operation: "created" | "updated"
+      if (exists) {
+        try {
+          await client.updateStream(connectStreamId, update.desiredConfig)
+          operation = "updated"
+        } catch (error) {
+          if (!(error instanceof Error && "status" in error && error.status === 404)) throw error
+          await client.createStream(connectStreamId, update.desiredConfig)
+          operation = "created"
+        }
+      } else {
+        await client.createStream(connectStreamId, update.desiredConfig)
+        operation = "created"
+      }
+
+      const pipeline = await store.updateWithRevision(id, update)
+      await activity?.append({
+        type: "pipeline.updated",
+        pipelineId: pipeline.id,
+        pipelineName: pipeline.name,
+        detail: "Pipeline configuration published",
+      })
+      return { pipeline, connectStreamId, operation }
     },
 
     async deletePipeline(id: string): Promise<void> {

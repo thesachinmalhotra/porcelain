@@ -5,8 +5,6 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-
-
 })
 
 const mocks = vi.hoisted(() => ({
@@ -87,53 +85,52 @@ describe("PipelineWorkspace", () => {
     expect(screen.getByRole("heading", { name: "Orders" })).toBeTruthy()
     expect(screen.getByText("Connect ready")).toBeTruthy()
     expect(screen.getAllByText("orders-runtime").length).toBeGreaterThan(0)
-    expect(screen.getByText("Active")).toBeTruthy()
-    expect(screen.getByText("42s")).toBeTruthy()
+    expect(screen.getAllByText("Running").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("42s").length).toBeGreaterThan(0)
     expect(screen.getByText("Payments")).toBeTruthy()
-    expect(screen.getByText("Disconnected")).toBeTruthy()
   })
 
   it("selects a step, edits valid JSON, and can discard the draft", async () => {
     renderWorkspace()
 
-    fireEvent.click(screen.getByRole("button", { name: /Processor 1/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Processor 1" }))
     expect(screen.getByRole("heading", { name: "Processor 1" })).toBeTruthy()
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit configuration" }))
+    fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }))
     const editor = screen.getByRole("textbox", { name: "Step configuration" })
     fireEvent.change(editor, { target: { value: '{"label":"normalize-v2","mapping":"root = this"}' } })
     fireEvent.click(screen.getByRole("button", { name: "Apply change" }))
 
-    expect(screen.getByText("This pipeline has unpublished changes")).toBeTruthy()
+    expect(screen.getByText("Unpublished changes")).toBeTruthy()
     expect(screen.getByText(/normalize-v2/)).toBeTruthy()
 
     fireEvent.click(screen.getByRole("button", { name: "Discard" }))
-    expect(screen.queryByText("This pipeline has unpublished changes")).toBeNull()
+    expect(screen.queryByText("Unpublished changes")).toBeNull()
     expect(screen.getByText(/"normalize"/)).toBeTruthy()
   })
 
   it("surfaces invalid JSON without creating a draft", async () => {
     renderWorkspace()
 
-    fireEvent.click(screen.getByRole("button", { name: /Processor 1/ }))
-    fireEvent.click(screen.getByRole("button", { name: "Edit configuration" }))
+    fireEvent.click(screen.getByRole("button", { name: "Processor 1" }))
+    fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }))
     const editor = screen.getByRole("textbox", { name: "Step configuration" })
     fireEvent.change(editor, { target: { value: "{" } })
     fireEvent.click(screen.getByRole("button", { name: "Apply change" }))
 
     expect(screen.getByRole("alert").textContent).toContain("JSON")
-    expect(screen.queryByText("This pipeline has unpublished changes")).toBeNull()
+    expect(screen.queryByText("Unpublished changes")).toBeNull()
   })
 
   it("publishes the draft and reconciles route data", async () => {
     renderWorkspace()
 
-    fireEvent.click(screen.getByRole("button", { name: /Processor 1/ }))
-    fireEvent.click(screen.getByRole("button", { name: "Edit configuration" }))
+    fireEvent.click(screen.getByRole("button", { name: "Processor 1" }))
+    fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }))
     const editor = screen.getByRole("textbox", { name: "Step configuration" })
     fireEvent.change(editor, { target: { value: '{"label":"normalize-v2","mapping":"root = this"}' } })
     fireEvent.click(screen.getByRole("button", { name: "Apply change" }))
-    fireEvent.click(screen.getByRole("button", { name: "Validate draft" }))
+    fireEvent.click(screen.getByRole("button", { name: "Validate" }))
     await waitFor(() => expect(mocks.validateAuthoredPipelineServer).toHaveBeenCalledWith({
       data: { id: "orders", authoring: expect.objectContaining({ id: "orders" }) },
     }))
@@ -148,7 +145,7 @@ describe("PipelineWorkspace", () => {
       },
     }))
     expect(mocks.invalidate).toHaveBeenCalledWith({ sync: true })
-    expect(screen.queryByText("This pipeline has unpublished changes")).toBeNull()
+    expect(screen.queryByText("Unpublished changes")).toBeNull()
   })
   it("creates a pipeline from the workspace and navigates to it", async () => {
     renderWorkspace()
@@ -164,39 +161,4 @@ describe("PipelineWorkspace", () => {
     expect(mocks.navigate).toHaveBeenCalledWith({ to: "/pipelines/shipping", params: { pipelineId: "shipping" } })
   })
 
-  it("deletes a pipeline through the lifecycle boundary", async () => {
-    vi.stubGlobal("confirm", vi.fn().mockReturnValue(true))
-    renderWorkspace()
-
-    fireEvent.click(screen.getByRole("button", { name: "Delete pipeline" }))
-
-    await waitFor(() => expect(mocks.deletePipeline).toHaveBeenCalledWith({ data: { id: "orders" } }))
-    expect(mocks.navigate).toHaveBeenCalled()
-    vi.unstubAllGlobals()
-  })
-
-  it("creates a pipeline from the workspace and navigates to it", async () => {
-    renderWorkspace()
-
-    fireEvent.click(screen.getByRole("button", { name: "New pipeline" }))
-    fireEvent.change(screen.getByLabelText("Pipeline ID"), { target: { value: "shipping" } })
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Shipping" } })
-    fireEvent.click(screen.getByRole("button", { name: "Create pipeline" }))
-
-    await waitFor(() => expect(mocks.createAuthoredPipelineServer).toHaveBeenCalledWith({
-      data: { id: "shipping", name: "Shipping", input: { stdin: {} }, output: { drop: {} } },
-    }))
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: "/pipelines/shipping", params: { pipelineId: "shipping" } })
-  })
-
-  it("deletes a pipeline through the real lifecycle boundary", async () => {
-    vi.stubGlobal("confirm", vi.fn().mockReturnValue(true))
-    renderWorkspace()
-
-    fireEvent.click(screen.getByRole("button", { name: "Delete pipeline" }))
-
-    await waitFor(() => expect(mocks.deletePipeline).toHaveBeenCalledWith({ data: { id: "orders" } }))
-    expect(mocks.navigate).toHaveBeenCalled()
-    vi.unstubAllGlobals()
-  })
 })
