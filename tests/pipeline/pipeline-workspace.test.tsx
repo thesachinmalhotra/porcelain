@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   publishAuthoredPipelineServer: vi.fn().mockResolvedValue({ pipeline: { id: "orders" }, restartRequired: false, runtime: { connected: true, active: true, uptime: 42, uptimeStr: "42s", stats: {} } }),
   updateAuthoredPipelineServer: vi.fn().mockResolvedValue("orders"),
   createAuthoredPipelineServer: vi.fn().mockResolvedValue("new-pipeline"),
+  deletePipeline: vi.fn().mockResolvedValue(undefined),
   invalidate: vi.fn().mockResolvedValue(undefined),
   navigate: vi.fn().mockResolvedValue(undefined),
 }))

@@ -687,3 +687,55 @@ body { min-width: 1180px; background-image: none; }
 .runtime-stat strong { color: var(--color-mist); }
 
 .modal, .component-picker { box-shadow: var(--overlay-shadow); }
+
+
+/* UI-03 primitive contracts. Primitives consume the UI-02 token system. */
+.button-sm { min-height: 31px; }
+.button-md { min-height: 34px; padding-inline: var(--space-4); font-size: 11px; }
+.icon-button-sm { width: 30px; height: 30px; }
+.icon-button-md { width: 34px; height: 34px; }
+
+.ui-input, .ui-select, .ui-textarea {
+  width: 100%;
+  border: var(--border);
+  border-radius: var(--radius-md);
+  color: var(--color-mist);
+  background: var(--color-void);
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.ui-input, .ui-select { min-height: 34px; padding: 0 var(--space-3); font-size: 11px; }
+.ui-textarea { min-height: 120px; padding: var(--space-3); resize: vertical; font: 10px/1.55 var(--font-mono); }
+.ui-input:focus, .ui-select:focus, .ui-textarea:focus { border-color: var(--color-smoke); box-shadow: var(--focus-ring); }
+.ui-input::placeholder, .ui-textarea::placeholder { color: var(--color-ash); }
+
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 var(--space-2);
+  border: var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--color-fog);
+  background: rgb(255 255 255 / 3%);
+  font-size: 10px;
+  line-height: 1;
+}
+.ui-badge-success { color: var(--color-success); border-color: rgb(63 164 106 / 35%); background: rgb(63 164 106 / 7%); }
+.ui-badge-warning { color: var(--color-warning); border-color: rgb(181 138 77 / 35%); background: rgb(181 138 77 / 7%); }
+.ui-badge-danger { color: var(--color-danger); border-color: rgb(201 99 108 / 35%); background: rgb(201 99 108 / 7%); }
+
+.ui-status { display: inline-flex; align-items: center; gap: 7px; color: var(--color-fog); font-size: 10px; }
+.ui-status-success { color: var(--color-success); }
+.ui-status-warning { color: var(--color-warning); }
+.ui-status-danger { color: var(--color-danger); }
+.ui-status-success .status-dot { background: var(--color-success); }
+.ui-status-warning .status-dot { background: var(--color-warning); }
+.ui-status-danger .status-dot { background: var(--color-danger); }
+
+.ui-divider { width: 100%; height: 1px; background: var(--color-graphite); }
+.ui-avatar { flex: none; }
+.ui-kbd { color: var(--color-ash); font: 9px var(--font-mono); }
+
+.inspector-tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.inspector-tab:disabled { cursor: default; opacity: .45; }

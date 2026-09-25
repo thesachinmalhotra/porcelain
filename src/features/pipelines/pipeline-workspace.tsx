@@ -9,6 +9,7 @@ import { createAuthoredPipelineServer, deletePipeline, publishAuthoredPipelineSe
 import { Icon } from "../../components/app-shell"
 import { createConnectComponentConfig, normalizeConnectConfig } from "../components/server"
 import type { ConnectComponentCapability } from "../../runtime/connect/capabilities"
+import { Button, IconButton, Tabs } from "../../ui/primitives"
 
 type PipelineWorkspaceProps = { connectReachable: boolean; connectReady: boolean; pipelines: PipelineWorkspacePipeline[]; components?: ConnectComponentCapability[]; pipelineId?: string }
 type Step = { id: string; label: string; kind: "input" | "buffer" | "processor" | "output"; config: JsonObject }
@@ -373,14 +374,14 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
           </div>
         </div>
         <div className="pipeline-header-actions">
-          <button className="button button-ghost" type="button" onClick={() => setShowCreate(true)}><Icon name="plus" />New</button>
-          <button className="button button-ghost" type="button" onClick={discard} disabled={!dirty}>Discard</button>
-          <button className="button button-secondary" type="button" onClick={() => void validateWithConnect()} disabled={!dirty || validating}>
+          <Button variant="ghost" onClick={() => setShowCreate(true)}><Icon name="plus" />New</Button>
+          <Button variant="ghost" onClick={discard} disabled={!dirty}>Discard</Button>
+          <Button variant="secondary" onClick={() => void validateWithConnect()} disabled={!dirty || validating}>
             <Icon name={validation?.valid ? "check" : "terminal"} />{validating ? "Checking…" : "Validate"}
-          </button>
-          <button className="button button-primary publish-button" type="button" onClick={publish} disabled={!dirty || saving || !validation?.valid}>
+          </Button>
+          <Button variant="primary" className="publish-button" onClick={publish} disabled={!dirty || saving || !validation?.valid}>
             {saving ? "Publishing…" : "Publish"}
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -400,7 +401,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
               <span className="eyebrow">Workspace</span>
               <h2>Pipelines <span className="count-badge">{pipelines.length}</span></h2>
             </div>
-            <button className="icon-button" type="button" onClick={() => setShowCreate(true)} aria-label="New pipeline"><Icon name="plus" /></button>
+            <IconButton label="New pipeline" onClick={() => setShowCreate(true)}><Icon name="plus" /></IconButton>
           </div>
           <label className="workspace-search">
             <Icon name="search" />
@@ -439,10 +440,10 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
                 <h2>Stream topology <span className="count-badge">{steps.length}</span></h2>
               </div>
               <div className="topology-actions">
-                <button className="button button-secondary" type="button" onClick={toggleBuffer}>
+                <Button variant="secondary" onClick={toggleBuffer}>
                   {authoring?.buffer ? "Remove buffer" : "Add buffer"}
-                </button>
-                <button className="button button-secondary" type="button" onClick={addProcessor}><Icon name="plus" />Processor</button>
+                </Button>
+                <Button variant="secondary" onClick={addProcessor}><Icon name="plus" />Processor</Button>
               </div>
             </div>
 
@@ -510,7 +511,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
               <h2>{step?.label ?? "Pipeline"}</h2>
               {step && <code>{Object.keys(step.config)[0] ?? "configuration"}</code>}
             </div>
-            <button className="icon-button" type="button" aria-label="More options"><Icon name="more" /></button>
+            <IconButton label="More options"><Icon name="more" /></IconButton>
           </div>
 
           {step && (
@@ -518,30 +519,26 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
               {step.kind !== "buffer" && (
                 <div className="component-summary">
                   <div><span className="component-summary-label">Component</span><strong>{Object.keys(step.config).find((key) => key !== "label") ?? "Not configured"}</strong></div>
-                  <button className="button button-secondary" type="button" onClick={openComponentPicker} disabled={generating}>
+                  <Button variant="secondary" onClick={openComponentPicker} disabled={generating}>
                     {generating ? "Generating…" : "Change"}
-                  </button>
+                  </Button>
                 </div>
               )}
 
-              <div className="inspector-tabs" role="tablist" aria-label="Configuration view">
-                {(["friendly", "advanced", "raw"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    className={`inspector-tab ${inspectorMode === mode ? "active" : ""}`}
-                    type="button"
-                    role="tab"
-                    aria-selected={inspectorMode === mode}
-                    onClick={() => {
-                      setInspectorMode(mode)
-                      setEditing(false)
-                      if (mode === "raw" && authoring) setDraftText(stringify(authoringToConnectConfig(authoring), { lineWidth: 120 }))
-                    }}
-                  >
-                    {mode === "friendly" ? "Configure" : mode === "advanced" ? "Advanced" : "Source"}
-                  </button>
-                ))}
-              </div>
+              <Tabs
+                items={[
+                  { value: "friendly", label: "Configure" },
+                  { value: "advanced", label: "Advanced" },
+                  { value: "raw", label: "Source" },
+                ] as const}
+                value={inspectorMode}
+                onValueChange={(mode) => {
+                  setInspectorMode(mode)
+                  setEditing(false)
+                  if (mode === "raw" && authoring) setDraftText(stringify(authoringToConnectConfig(authoring), { lineWidth: 120 }))
+                }}
+                ariaLabel="Configuration view"
+              />
 
               <div className="inspector-body">
                 {inspectorMode === "friendly" && (
