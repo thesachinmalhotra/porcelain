@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Link, useRouter } from "@tanstack/react-router"
 import { parse, stringify } from "yaml"
 import type { JsonObject, PipelineAuthoring, PipelineAuthoringComponent } from "../../pipeline/authoring"
-import { addPipelineProcessor, movePipelineProcessor, removePipelineProcessor, replacePipelineAuthoringConfig, setPipelineAuthoringBuffer, updatePipelineAuthoring } from "../../pipeline/authoring"
+import { addPipelineProcessor, movePipelineProcessor, projectPipelineAuthoring, removePipelineProcessor, replacePipelineAuthoringConfig, setPipelineAuthoringBuffer, updatePipelineAuthoring } from "../../pipeline/authoring"
 import { authoringToConnectConfig } from "../../pipeline/authoring"
 import type { PipelineWorkspacePipeline } from "../../pipeline/pipeline"
 import { createAuthoredPipelineServer, deletePipeline, publishAuthoredPipelineServer, validateAuthoredPipelineServer } from "./server"
@@ -19,10 +19,11 @@ function authoringFromComponent(authoring: PipelineAuthoring, component: Pipelin
 }
 
 function stepsFor(authoring: PipelineAuthoring): Step[] {
-  const steps: Step[] = [{ id: "input", label: "Input", kind: "input", config: authoring.input }]
-  if (authoring.buffer) steps.push({ id: "buffer", label: "Buffer", kind: "buffer", config: authoring.buffer })
-  authoring.processors?.forEach((config, index) => steps.push({ id: `processor-${index}`, label: `Processor ${index + 1}`, kind: "processor", config }))
-  steps.push({ id: "output", label: "Output", kind: "output", config: authoring.output })
+  const projection = projectPipelineAuthoring(authoring)
+  const steps: Step[] = [{ id: "input", label: "Input", kind: "input", config: projection.input }]
+  if (projection.buffer) steps.push({ id: "buffer", label: "Buffer", kind: "buffer", config: projection.buffer })
+  projection.processors?.forEach((config, index) => steps.push({ id: `processor-${index}`, label: `Processor ${index + 1}`, kind: "processor", config }))
+  steps.push({ id: "output", label: "Output", kind: "output", config: projection.output })
   return steps
 }
 function Status({ pipeline }: { pipeline: PipelineWorkspacePipeline }) {

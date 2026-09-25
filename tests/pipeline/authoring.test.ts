@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { addPipelineProcessor, authoringToConnectConfig, replacePipelineAuthoringConfig, updatePipelineAuthoring, validatePipelineAuthoring } from "../../src/pipeline/authoring"
+import { addPipelineProcessor, authoringToConnectConfig, projectConnectConfig, replacePipelineAuthoringConfig, updatePipelineAuthoring, validatePipelineAuthoring } from "../../src/pipeline/authoring"
 import { authoringFromDefinition } from "../../src/pipeline/pipeline"
 
 describe("pipeline authoring", () => {
@@ -47,6 +47,41 @@ describe("pipeline authoring", () => {
       input: "generate" as unknown as Record<string, unknown>,
       output: { drop: {} },
     })).toThrow("Pipeline input must be an object")
+  })
+})
+
+describe("native Connect projection", () => {
+  it("projects the native stream boundary without dropping nested processor config", () => {
+    const projection = projectConnectConfig({
+      input: { http_server: { path: "/events" } },
+      pipeline: {
+        threads: 4,
+        processors: [
+          {
+            workflow: {
+              branches: {
+                enrich: {
+                  processors: [{ mapping: "root = this" }],
+                },
+              },
+            },
+          },
+        ],
+      },
+      output: { drop: {} },
+    })
+
+    expect(projection.input).toEqual({ http_server: { path: "/events" } })
+    expect(projection.processors?.[0]).toEqual({
+      workflow: {
+        branches: {
+          enrich: {
+            processors: [{ mapping: "root = this" }],
+          },
+        },
+      },
+    })
+    expect(projection.output).toEqual({ drop: {} })
   })
 })
 
@@ -102,9 +137,9 @@ describe("pipeline authoring round-trip", () => {
     }
 
     const authoring = authoringFromDefinition(definition, revision)
-    authoring.input = { generate: { interval: "2s" } }
+    const updated = updatePipelineAuthoring(authoring, { kind: "input" }, { generate: { interval: "2s" } })
 
-    expect(authoringToConnectConfig(authoring)).toEqual({
+    expect(authoringToConnectConfig(updated)).toEqual({
       input: { generate: { interval: "2s" } },
       buffer: { memory: { limit: 100 } },
       pipeline: {
