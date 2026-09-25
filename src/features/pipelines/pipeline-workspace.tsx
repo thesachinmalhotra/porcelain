@@ -454,7 +454,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
                       <span className="topology-node-icon"><Icon name={item.kind === "processor" ? "layers" : item.kind === "input" ? "database" : item.kind === "output" ? "arrow" : "grid"} /></span>
                       <span className="topology-node-copy">
                         <span className="topology-node-kind">{item.kind}</span>
-                        <strong>{item.config && Object.keys(item.config).find((key) => key !== "label") ?? item.label}</strong>
+                        <strong>{(item.config && Object.keys(item.config).find((key) => key !== "label")) ?? item.label}</strong>
                         <code>{item.label}</code>
                       </span>
                       <Icon name="more" />
