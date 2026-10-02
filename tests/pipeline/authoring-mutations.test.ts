@@ -43,16 +43,14 @@ describe("pipeline authoring mutations", () => {
       { mapping: "root.foo = this.foo" },
     ])
     expect(base.processors?.[0]).toEqual({ mapping: "root = this", label: "normalize" })
-    expect(next.connectConfig).toEqual({
-      ...base.connectConfig,
-      pipeline: {
-        ...base.connectConfig?.pipeline,
-        processors: [
-          { mapping: "root = this.foo" },
-          { mapping: "root.foo = this.foo" },
-        ],
-      },
+    expect(next.connectConfig?.pipeline).toEqual({
+      threads: 4,
+      processors: [
+        { mapping: "root = this.foo" },
+        { mapping: "root.foo = this.foo" },
+      ],
     })
+    expect(next.connectConfig?.custom_field).toEqual({ preserved: true })
   })
 
   it("adds and removes processors while preserving order", () => {

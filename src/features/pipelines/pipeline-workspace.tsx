@@ -6,6 +6,8 @@ import { addPipelineProcessor, movePipelineProcessor, projectPipelineAuthoring, 
 import { authoringToConnectConfig } from "../../pipeline/authoring"
 import type { PipelineWorkspacePipeline } from "../../pipeline/pipeline"
 import { createAuthoredPipelineServer, deletePipeline, publishAuthoredPipelineServer, validateAuthoredPipelineServer } from "./server"
+import { getPipelineRuntime } from "./runtime-server"
+import { connectComponentRuntimeStats, connectPipelineRuntimeSummary } from "../../runtime/connect/stats"
 import { Icon } from "../../components/app-shell"
 import { createConnectComponentConfig, normalizeConnectConfig } from "../components/server"
 import type { ConnectComponentCapability } from "../../runtime/connect/capabilities"
@@ -31,9 +33,18 @@ function Status({ pipeline }: { pipeline: PipelineWorkspacePipeline }) {
   return <span className={`status status-${label.toLowerCase()}`}><span className="status-dot" />{label}</span>
 }
 function formatNumber(value: unknown) { return typeof value === "number" ? new Intl.NumberFormat().format(value) : "—" }
-function receivedMessages(pipeline: PipelineWorkspacePipeline) {
-  const input = pipeline.runtime.stats?.input
-  return input && typeof input === "object" && "received" in input ? input.received : undefined
+
+
+function RuntimeNodeMetrics({ stats, kind, index }: { stats: PipelineWorkspacePipeline["runtime"]["stats"]; kind: Step["kind"]; index?: number }) {
+  const path = kind === "input" ? "root.input" : kind === "buffer" ? "root.buffer" : kind === "output" ? "root.output" : `root.pipeline.processors.${index ?? 0}`
+  const metrics = connectComponentRuntimeStats(stats, path, kind)
+  if (!metrics) return null
+  const primary = kind === "output" ? metrics.sent : metrics.received
+  return <span className="topology-node-runtime">
+    {primary !== null && <span>{formatNumber(primary)} {kind === "output" ? "sent" : "received"}</span>}
+    {metrics.errors > 0 && <span className="runtime-error">{formatNumber(metrics.errors)} errors</span>}
+    {metrics.latencyP50Ms !== null && <span>{metrics.latencyP50Ms < 1 ? "<1" : metrics.latencyP50Ms.toFixed(1)} ms p50</span>}
+  </span>
 }
 
 function workspaceComponents(components: ConnectComponentCapability[], kind: Step["kind"]): ConnectComponentCapability[] {
@@ -104,6 +115,30 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
   const router = useRouter()
   useEffect(() => { if (pipelineId) setSelectedId(pipelineId) }, [pipelineId])
   const selected = pipelines.find((pipeline) => pipeline.id === selectedId) ?? pipelines[0]
+  const [runtimeSnapshot, setRuntimeSnapshot] = useState<{
+    pipelineId: string
+    connectReachable: boolean
+    connectReady: boolean
+    runtime: PipelineWorkspacePipeline["runtime"]
+  } | null>(null)
+  useEffect(() => {
+    if (!selected) return
+    let cancelled = false
+    const refresh = async () => {
+      try {
+        const snapshot = await getPipelineRuntime({ data: { id: selected.id } })
+        if (!cancelled) setRuntimeSnapshot({ pipelineId: selected.id, ...snapshot })
+      } catch {
+        // Keep the last known runtime view until a later poll succeeds.
+      }
+    }
+    void refresh()
+    const interval = window.setInterval(() => void refresh(), 2000)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [selected?.id])
   const authoring = selected ? drafts[selected.id] ?? selected.authoring : undefined
   const steps = authoring ? stepsFor(authoring) : []
   const selectedStepId = selectedStep.kind === "input" ? "input" : selectedStep.kind === "buffer" ? "buffer" : selectedStep.kind === "output" ? "output" : `processor-${selectedStep.index}`
@@ -352,9 +387,13 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
     setValidation(null)
   }
 
-  const statusLabel = !selected.runtime.connected ? "Disconnected" : selected.runtime.active ? "Running" : "Stopped"
-  const statusClass = !selected.runtime.connected ? "status-disconnected" : selected.runtime.active ? "status-running" : "status-inactive"
-  const received = receivedMessages(selected)
+  const live = runtimeSnapshot?.pipelineId === selected.id ? runtimeSnapshot : null
+  const runtime = live?.runtime ?? selected.runtime
+  const liveConnectReachable = live?.connectReachable ?? connectReachable
+  const liveConnectReady = live?.connectReady ?? connectReady
+  const statusLabel = !runtime.connected ? "Disconnected" : runtime.active ? "Running" : "Stopped"
+  const statusClass = !runtime.connected ? "status-disconnected" : runtime.active ? "status-running" : "status-inactive"
+  const runtimeSummary = connectPipelineRuntimeSummary(runtime.stats)
   const processorCount = authoring?.processors?.length ?? 0
 
   return (
@@ -427,8 +466,8 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
           </div>
           <div className="pipeline-sidebar-footer">
             <div className="runtime-mini">
-              <span className={`status-dot ${connectReady ? "online" : "offline"}`} />
-              <div><strong>{!connectReachable ? "Runtime unreachable" : connectReady ? "Connect ready" : "Connect degraded"}</strong><small>localhost:4195</small></div>
+              <span className={`status-dot ${liveConnectReady ? "online" : "offline"}`} />
+              <div><strong>{!liveConnectReachable ? "Runtime unreachable" : liveConnectReady ? "Connect ready" : "Connect degraded"}</strong><small>localhost:4195</small></div>
             </div>
           </div>
         </aside>
@@ -458,6 +497,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
                         <span className="topology-node-kind">{item.kind}</span>
                         <strong>{(item.config && Object.keys(item.config).find((key) => key !== "label")) ?? item.label}</strong>
                         <code>{item.label}</code>
+                        <RuntimeNodeMetrics stats={runtime.stats} kind={item.kind} index={item.kind === "processor" ? Number(item.id.split("-")[1]) : undefined} />
                       </span>
                       <Icon name="more" />
                     </button>
@@ -498,7 +538,9 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
             <div className="runtime-strip-main">
               <div className={`runtime-state ${statusClass}`}><span className="status-dot" /><strong>{statusLabel}</strong></div>
               <div className="runtime-stat"><span>Uptime</span><strong>{selected.runtime.connected ? selected.runtime.uptime : "—"}</strong></div>
-              <div className="runtime-stat"><span>Messages received</span><strong>{formatNumber(received)}</strong></div>
+              <div className="runtime-stat"><span>Received</span><strong>{formatNumber(runtimeSummary.received)}</strong></div>
+              <div className="runtime-stat"><span>Sent</span><strong>{formatNumber(runtimeSummary.sent)}</strong></div>
+              <div className="runtime-stat"><span>Errors</span><strong className={runtimeSummary.errors > 0 ? "runtime-error" : ""}>{formatNumber(runtimeSummary.errors)}</strong></div>
               <div className="runtime-stat"><span>Processors</span><strong>{processorCount}</strong></div>
             </div>
             <Link className="text-button" to="/runtime">Open runtime <Icon name="arrow" /></Link>
@@ -595,13 +637,13 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
                 </div>
 
                 <div className="inspector-runtime">
-                  <div className="section-intro"><strong>Runtime</strong><span>Live from Connect</span></div>
+                  <div className="section-intro"><strong>Runtime</strong><span>Live from Connect ? 2s</span></div>
                   <dl className="detail-list">
-                    <div><dt>Connection</dt><dd>{selected.runtime.connected ? "Connected" : "Unavailable"}</dd></div>
+                    <div><dt>Connection</dt><dd>{runtime.connected ? "Connected" : "Unavailable"}</dd></div>
                     <div><dt>Stream</dt><dd className="mono">{selected.connectStreamId ?? "—"}</dd></div>
                     <div><dt>Status</dt><dd>{statusLabel}</dd></div>
                     <div><dt>Uptime</dt><dd>{selected.runtime.connected ? selected.runtime.uptime : "—"}</dd></div>
-                    <div><dt>Messages received</dt><dd>{formatNumber(received)}</dd></div>
+                    <div><dt>Messages received</dt><dd>{formatNumber(runtimeSummary.received)}</dd></div>
                   </dl>
                 </div>
               </div>

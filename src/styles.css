@@ -813,3 +813,9 @@ body { min-width: 1180px; background-image: none; }
   .app-sidebar .user-row { border-top-color: transparent; }
 }
 @media (prefers-reduced-motion: reduce) { .app-shell, .app-sidebar, .sidebar-collapse svg { transition: none; } }
+
+
+.topology-node-runtime { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; color: #6f747e; font: 9px "DM Mono", monospace; }
+.topology-node-runtime span { white-space: nowrap; }
+.runtime-error { color: var(--color-danger, #d86c78) !important; }
+.runtime-strip .runtime-stat strong { min-width: 42px; }

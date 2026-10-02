@@ -9,6 +9,16 @@ afterEach(() => {
 
 const mocks = vi.hoisted(() => ({
   validateAuthoredPipelineServer: vi.fn().mockResolvedValue({ valid: true, lintErrors: [], output: "ok", restartRequired: false }),
+  getPipelineRuntime: vi.fn().mockResolvedValue({ connectReachable: true, connectReady: true, runtime: { connected: true, active: true, uptimeSeconds: 42, uptime: "42s", stats: {
+    'input_received{label="",path="root.input",stream="orders-runtime"}': 42,
+    'processor_received{label="normalize",path="root.pipeline.processors.0",stream="orders-runtime"}': 42,
+    'processor_sent{label="normalize",path="root.pipeline.processors.0",stream="orders-runtime"}': 42,
+    'processor_error{label="normalize",path="root.pipeline.processors.0",stream="orders-runtime"}': 0,
+    'processor_latency_ns{label="normalize",path="root.pipeline.processors.0",stream="orders-runtime"}': { p50: 1200000, p90: 2000000, p99: 3000000 },
+    'output_sent{label="",path="root.output",stream="orders-runtime"}': 42,
+    'output_error{label="",path="root.output",stream="orders-runtime"}': 0,
+    'output_latency_ns{label="",path="root.output",stream="orders-runtime"}': { p50: 900000, p90: 1500000, p99: 2000000 },
+  } } }),
   publishAuthoredPipelineServer: vi.fn().mockResolvedValue({ pipeline: { id: "orders" }, restartRequired: false, runtime: { connected: true, active: true, uptime: 42, uptimeStr: "42s", stats: {} } }),
   updateAuthoredPipelineServer: vi.fn().mockResolvedValue("orders"),
   createAuthoredPipelineServer: vi.fn().mockResolvedValue("new-pipeline"),
@@ -22,8 +32,13 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
 }))
 
+vi.mock("../../src/features/pipelines/runtime-server", () => ({
+  getPipelineRuntime: mocks.getPipelineRuntime,
+}))
+
 vi.mock("../../src/features/pipelines/server", () => ({
   validateAuthoredPipelineServer: mocks.validateAuthoredPipelineServer,
+  getPipelineRuntime: mocks.getPipelineRuntime,
   publishAuthoredPipelineServer: mocks.publishAuthoredPipelineServer,
   updateAuthoredPipelineServer: mocks.updateAuthoredPipelineServer,
   createAuthoredPipelineServer: mocks.createAuthoredPipelineServer,
@@ -80,13 +95,16 @@ function renderWorkspace() {
 }
 
 describe("PipelineWorkspace", () => {
-  it("shows pipeline identity and live runtime state", () => {
+  it("shows pipeline identity and live runtime state", async () => {
     renderWorkspace()
     expect(screen.getByRole("heading", { name: "Orders" })).toBeTruthy()
     expect(screen.getByText("Connect ready")).toBeTruthy()
     expect(screen.getAllByText("orders-runtime").length).toBeGreaterThan(0)
     expect(screen.getAllByText("Running").length).toBeGreaterThan(0)
     expect(screen.getAllByText("42s").length).toBeGreaterThan(0)
+    await waitFor(() => expect(document.querySelector(".topology-node-runtime")?.textContent).toContain("42 received"))
+    expect(Array.from(document.querySelectorAll(".topology-node-runtime")).map((node) => node.textContent ?? "").some((text) => text.includes("1.2 ms p50"))).toBe(true)
+    expect(document.querySelector(".runtime-strip")?.textContent).toContain("42")
     expect(screen.getByText("Payments")).toBeTruthy()
   })
 
