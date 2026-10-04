@@ -1,34 +1,47 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { Link } from "@tanstack/react-router"
+import { HugeiconsIcon } from "@hugeicons/react"
+import {
+  Activity01Icon,
+  Alert02Icon,
+  ArrowRight01Icon,
+  CheckmarkCircle03Icon,
+  ComputerTerminal02Icon,
+  Database01Icon,
+  GridIcon,
+  Layers01Icon,
+  MoreHorizontalIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+  PlusSignIcon,
+  Search01Icon,
+  Settings01Icon,
+  WorkflowIcon,
+} from "@hugeicons/core-free-icons"
 
 export type IconName =
-  | "grid" | "pipeline" | "activity" | "settings" | "search" | "plus" | "chevron"
-  | "database" | "pulse" | "layers" | "terminal" | "check" | "warning" | "more" | "arrow"
+  | "grid" | "pipeline" | "activity" | "settings" | "search" | "database" | "layers" | "more" | "panelLeft" | "pulse" | "plus" | "check" | "terminal" | "warning" | "arrow"
 
 export function Icon({ name }: { name: IconName }) {
-  const paths: Record<IconName, string> = {
-    grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
-    pipeline: "M5 5h4v4H5zM15 15h4v4h-4zM9 7h6m0 0v8m0-8 3 3M9 17H7m0 0v-5m0 0 3-3",
-    activity: "M4 16l4-5 3 3 5-7 4 5",
-    settings: "M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7ZM5 12H3m18 0h-2M12 5V3m0 18v-2M6.7 6.7 5.3 5.3m13.4 13.4-1.4-1.4m0-10.6 1.4-1.4M5.3 18.7l1.4-1.4",
-    search: "m20 20-4.5-4.5M10.8 17a6.2 6.2 0 1 0 0-12.4 6.2 6.2 0 0 0 0 12.4Z",
-    plus: "M12 5v14M5 12h14",
-    chevron: "m7 10 5 5 5-5",
-    database: "M5 7c0-1.7 3.1-3 7-3s7 1.3 7 3-3.1 3-7 3-7-1.3-7-3Zm0 0v5c0 1.7 3.1 3 7 3s7-1.3 7-3V7m-14 5v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5",
-    pulse: "M3 12h4l2-7 4 14 2-7h6",
-    layers: "m4 7 8-4 8 4-8 4-8-4Zm0 5 8 4 8-4M4 17l8 4 8-4",
-    terminal: "m5 7 4 5-4 5m7 0h7",
-    check: "m5 12 4 4L19 6",
-    warning: "M12 4 21 20H3L12 4Zm0 6v4m0 3h.01",
-    more: "M6 12h.01M12 12h.01M18 12h.01",
-    arrow: "M5 12h13m-5-5 5 5-5 5",
-  }
+  const icons = {
+    grid: GridIcon,
+    pipeline: WorkflowIcon,
+    activity: Activity01Icon,
+    pulse: Activity01Icon,
+    settings: Settings01Icon,
+    search: Search01Icon,
+    database: Database01Icon,
+    layers: Layers01Icon,
+    more: MoreHorizontalIcon,
+    panelLeft: PanelLeftCloseIcon,
+    plus: PlusSignIcon,
+    check: CheckmarkCircle03Icon,
+    terminal: ComputerTerminal02Icon,
+    warning: Alert02Icon,
+    arrow: ArrowRight01Icon,
+  } as const
 
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d={paths[name]} />
-    </svg>
-  )
+  return <HugeiconsIcon icon={icons[name]} size={16} color="currentColor" strokeWidth={1.5} />
 }
 
 const navGroups = [
@@ -83,7 +96,12 @@ export function AppShell({ children }: Readonly<{ children?: ReactNode }>) {
             aria-expanded={!collapsed}
             onClick={toggleCollapsed}
           >
-            <Icon name="chevron" />
+            <HugeiconsIcon
+              icon={collapsed ? PanelLeftOpenIcon : PanelLeftCloseIcon}
+              size={16}
+              color="currentColor"
+              strokeWidth={1.5}
+            />
           </button>
         </div>
 

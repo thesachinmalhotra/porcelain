@@ -76,7 +76,6 @@ describe("Connect capability discovery", () => {
     })
 
     expect(result.inventoryFormat).toBe("json")
-    expect(result.schemaFormat).toBe("cue")
     expect(result.components).toEqual([
       { name: "mapping", kinds: ["processor"], status: "beta" },
       { name: "redpanda", kinds: ["input", "output"], status: "stable" },

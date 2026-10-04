@@ -201,6 +201,66 @@ export function movePipelineProcessor(
   return replacePipelineAuthoringConfig(authoring, native)
 }
 
+export type PipelineConnection = {
+  source: PipelineAuthoringComponent
+  target: PipelineAuthoringComponent
+}
+
+export type PipelineConnectionValidation = {
+  valid: boolean
+  reason?: string
+}
+
+export function validatePipelineConnection(
+  authoring: PipelineAuthoring,
+  connection: PipelineConnection,
+): PipelineConnectionValidation {
+  const { source, target } = connection
+  if (target.kind === "input" || source.kind === "output") return { valid: false, reason: "Inputs only receive the stream from outside; outputs terminate it." }
+  if (source.kind === "buffer" && target.kind === "buffer") return { valid: false, reason: "A Connect stream can contain only one buffer." }
+  if (source.kind === "input" && target.kind === "buffer") return authoring.buffer === undefined ? { valid: false, reason: "Add a buffer before connecting the input to it." } : { valid: true }
+  if (source.kind === "buffer" && target.kind === "processor") return isProcessorIndex(authoring, target.index) ? { valid: true } : { valid: false, reason: "That processor no longer exists in the authored pipeline." }
+  if (source.kind === "input" && target.kind === "processor") {
+    if (authoring.buffer !== undefined) return { valid: false, reason: "The configured buffer sits between the input and processor pipeline." }
+    return isProcessorIndex(authoring, target.index) ? { valid: true } : { valid: false, reason: "That processor no longer exists in the authored pipeline." }
+  }
+  if (source.kind === "processor" && target.kind === "processor") {
+    if (!isProcessorIndex(authoring, source.index) || !isProcessorIndex(authoring, target.index)) return { valid: false, reason: "One of the selected processors no longer exists in the authored pipeline." }
+    return source.index === target.index ? { valid: false, reason: "A processor cannot connect to itself." } : { valid: true }
+  }
+  if (source.kind === "processor" && target.kind === "output") return isProcessorIndex(authoring, source.index) ? { valid: true } : { valid: false, reason: "That processor no longer exists in the authored pipeline." }
+  if (source.kind === "buffer" && target.kind === "output") return (authoring.processors?.length ?? 0) > 0 ? { valid: false, reason: "Processors sit between the buffer and output." } : { valid: true }
+  if (source.kind === "input" && target.kind === "output") return authoring.buffer !== undefined || (authoring.processors?.length ?? 0) > 0 ? { valid: false, reason: "Configured pipeline components must remain between input and output." } : { valid: true }
+  return { valid: false, reason: "That connection is not valid for a Connect stream." }
+}
+
+export function connectPipelineAuthoring(
+  authoring: PipelineAuthoring,
+  connection: PipelineConnection,
+): PipelineAuthoring {
+  const validation = validatePipelineConnection(authoring, connection)
+  if (!validation.valid) throw new Error(validation.reason)
+
+  const { source, target } = connection
+
+  if (source.kind === "input" && target.kind === "buffer") return cloneAuthoring(authoring)
+  if (source.kind === "buffer" && target.kind === "processor") return movePipelineProcessor(authoring, target.index, 0)
+  if (source.kind === "input" && target.kind === "processor") return movePipelineProcessor(authoring, target.index, 0)
+  if (source.kind === "processor" && target.kind === "processor") {
+    const toIndex = source.index < target.index ? target.index - 1 : target.index
+    return movePipelineProcessor(authoring, source.index, toIndex)
+  }
+  if (source.kind === "processor" && target.kind === "output") return movePipelineProcessor(authoring, source.index, (authoring.processors?.length ?? 1) - 1)
+  if (source.kind === "buffer" && target.kind === "output") return cloneAuthoring(authoring)
+  if (source.kind === "input" && target.kind === "output") return cloneAuthoring(authoring)
+
+  throw new Error("That connection is not valid for a Connect stream")
+}
+
+export function disconnectPipelineAuthoring(_authoring: PipelineAuthoring, _connection: PipelineConnection): never {
+  throw new Error("Connect streams do not persist disconnected edges; remove or reorder the component instead.")
+}
+
 export function updatePipelineAuthoringAtPath(
   authoring: PipelineAuthoring,
   path: ConnectConfigPathSegment[],
@@ -273,9 +333,13 @@ function updateNativeComponent(
 }
 
 function assertProcessorIndex(authoring: PipelineAuthoring, index: number): void {
-  if (!Number.isInteger(index) || index < 0 || index >= (authoring.processors?.length ?? 0)) {
+  if (!isProcessorIndex(authoring, index)) {
     throw new Error("Processor index is out of range")
   }
+}
+
+function isProcessorIndex(authoring: PipelineAuthoring, index: number): boolean {
+  return Number.isInteger(index) && index >= 0 && index < (authoring.processors?.length ?? 0)
 }
 
 function cloneAuthoring(authoring: PipelineAuthoring): PipelineAuthoring {

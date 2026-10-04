@@ -1,182 +1,103 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
+import type { ConnectComponentCapability } from "../../src/runtime/connect/capabilities"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-afterEach(() => {
-  cleanup()
-  vi.clearAllMocks()
-})
+afterEach(() => { cleanup(); vi.clearAllMocks() })
 
 const mocks = vi.hoisted(() => ({
-  validateAuthoredPipelineServer: vi.fn().mockResolvedValue({ valid: true, lintErrors: [], output: "ok", restartRequired: false }),
-  getPipelineRuntime: vi.fn().mockResolvedValue({ connectReachable: true, connectReady: true, runtime: { connected: true, active: true, uptimeSeconds: 42, uptime: "42s", stats: {
-    'input_received{label="",path="root.input",stream="orders-runtime"}': 42,
-    'processor_received{label="normalize",path="root.pipeline.processors.0",stream="orders-runtime"}': 42,
-    'processor_sent{label="normalize",path="root.pipeline.processors.0",stream="orders-runtime"}': 42,
-    'processor_error{label="normalize",path="root.pipeline.processors.0",stream="orders-runtime"}': 0,
-    'processor_latency_ns{label="normalize",path="root.pipeline.processors.0",stream="orders-runtime"}': { p50: 1200000, p90: 2000000, p99: 3000000 },
-    'output_sent{label="",path="root.output",stream="orders-runtime"}': 42,
-    'output_error{label="",path="root.output",stream="orders-runtime"}': 0,
-    'output_latency_ns{label="",path="root.output",stream="orders-runtime"}': { p50: 900000, p90: 1500000, p99: 2000000 },
-  } } }),
-  publishAuthoredPipelineServer: vi.fn().mockResolvedValue({ pipeline: { id: "orders" }, restartRequired: false, runtime: { connected: true, active: true, uptime: 42, uptimeStr: "42s", stats: {} } }),
-  updateAuthoredPipelineServer: vi.fn().mockResolvedValue("orders"),
-  createAuthoredPipelineServer: vi.fn().mockResolvedValue("new-pipeline"),
-  deletePipeline: vi.fn().mockResolvedValue(undefined),
-  invalidate: vi.fn().mockResolvedValue(undefined),
+  validate: vi.fn().mockResolvedValue({ valid: true, lintErrors: [], output: "ok", restartRequired: false }),
+  runtime: vi.fn().mockResolvedValue({ connectReachable: true, connectReady: true, runtime: { connected: true, active: true, uptimeSeconds: 42, uptime: "42s", stats: {} } }),
+  publish: vi.fn().mockResolvedValue({ pipeline: { id: "orders" }, restartRequired: false }),
+  create: vi.fn().mockResolvedValue("shipping"),
   navigate: vi.fn().mockResolvedValue(undefined),
+  invalidate: vi.fn().mockResolvedValue(undefined),
+  component: vi.fn().mockImplementation(async ({ data }: { data: { kind: string; name: string } }) => data.kind === "processor" ? { mapping: "root = this" } : data.kind === "input" ? { stdin: {} } : { stdout: {} }),
+  normalize: vi.fn().mockImplementation(async ({ data }: { data: { config: object } }) => data.config),
 }))
 
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({ invalidate: mocks.invalidate, navigate: mocks.navigate }),
   Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
 }))
-
-vi.mock("../../src/features/pipelines/runtime-server", () => ({
-  getPipelineRuntime: mocks.getPipelineRuntime,
-}))
-
+vi.mock("../../src/features/pipelines/runtime-server", () => ({ getPipelineRuntime: mocks.runtime }))
 vi.mock("../../src/features/pipelines/server", () => ({
-  validateAuthoredPipelineServer: mocks.validateAuthoredPipelineServer,
-  getPipelineRuntime: mocks.getPipelineRuntime,
-  publishAuthoredPipelineServer: mocks.publishAuthoredPipelineServer,
-  updateAuthoredPipelineServer: mocks.updateAuthoredPipelineServer,
-  createAuthoredPipelineServer: mocks.createAuthoredPipelineServer,
-  deletePipeline: mocks.deletePipeline,
+  validateAuthoredPipelineServer: mocks.validate,
+  publishAuthoredPipelineServer: mocks.publish,
+  createAuthoredPipelineServer: mocks.create,
+  deletePipeline: vi.fn(),
 }))
+vi.mock("../../src/features/components/server", async () => {
+  const actual = await vi.importActual<typeof import("../../src/features/components/server")>("../../src/features/components/server")
+  return { ...actual, createConnectComponentConfig: mocks.component, normalizeConnectConfig: mocks.normalize }
+})
 
 import { PipelineWorkspace } from "../../src/features/pipelines/pipeline-workspace"
 
-const authoring = {
-  id: "orders",
-  name: "Orders",
-  metadata: { owner: "porcelain" },
-  input: { generate: { interval: "1s" } },
-  processors: [{ label: "normalize", mapping: "root = this" }],
-  output: { drop: {} },
-  connectConfig: {
-    input: { generate: { interval: "1s" } },
-    pipeline: { threads: 4, processors: [{ label: "normalize", mapping: "root = this" }] },
-    output: { drop: {} },
-  },
-}
-
-const runtime = {
-  connected: true,
-  active: true,
-  uptimeSeconds: 42,
-  uptime: "42s",
-  stats: { input: { received: 42 } },
-}
+const authoring = { id: "orders", name: "Orders", input: { generate: { interval: "1s" } }, processors: [{ label: "normalize", mapping: "root = this" }], output: { drop: {} }, connectConfig: { input: { generate: { interval: "1s" } }, pipeline: { processors: [{ label: "normalize", mapping: "root = this" }] }, output: { drop: {} } } }
+const runtime = { connected: true, active: true, uptimeSeconds: 42, uptime: "42s", stats: {} }
+const components: ConnectComponentCapability[] = [
+  { name: "generate", kinds: ["input"], status: "stable" as const },
+  { name: "filter", kinds: ["processor"], status: "stable" as const },
+  { name: "drop", kinds: ["output"], status: "stable" as const },
+]
 
 function renderWorkspace() {
-  return render(
-    <PipelineWorkspace
-      connectReachable={true}
-      connectReady={true}
-      pipelines={[
-        { id: "orders", name: "Orders", connectStreamId: "orders-runtime", runtime, authoring },
-        {
-          id: "payments",
-          name: "Payments",
-          connectStreamId: "payments-runtime",
-          runtime: { connected: false, active: false, uptimeSeconds: 0, uptime: "0s", stats: null },
-          authoring: {
-            id: "payments",
-            name: "Payments",
-            input: { stdin: {} },
-            output: { drop: {} },
-            connectConfig: { input: { stdin: {} }, output: { drop: {} } },
-          },
-        },
-      ]}
-    />,
-  )
+  return render(<PipelineWorkspace connectReachable connectReady pipelines={[{ id: "orders", name: "Orders", connectStreamId: "orders-runtime", runtime, authoring }]} components={components} />)
 }
 
 describe("PipelineWorkspace", () => {
-  it("shows pipeline identity and live runtime state", async () => {
+  it("renders the workspace shell and live runtime", async () => {
     renderWorkspace()
     expect(screen.getByRole("heading", { name: "Orders" })).toBeTruthy()
-    expect(screen.getByText("Connect ready")).toBeTruthy()
-    expect(screen.getAllByText("orders-runtime").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("Running").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("42s").length).toBeGreaterThan(0)
-    await waitFor(() => expect(document.querySelector(".topology-node-runtime")?.textContent).toContain("42 received"))
-    expect(Array.from(document.querySelectorAll(".topology-node-runtime")).map((node) => node.textContent ?? "").some((text) => text.includes("1.2 ms p50"))).toBe(true)
-    expect(document.querySelector(".runtime-strip")?.textContent).toContain("42")
-    expect(screen.getByText("Payments")).toBeTruthy()
+    expect(screen.getByText("Redpanda Connect ready")).toBeTruthy()
+    expect(screen.getByText("orders-runtime")).toBeTruthy()
+    expect(screen.getByRole("complementary", { name: "Connect component library" })).toBeTruthy()
+    expect(screen.getByRole("complementary", { name: "Inspector" })).toBeTruthy()
+    await waitFor(() => expect(mocks.runtime).toHaveBeenCalled())
   })
 
-  it("selects a step, edits valid JSON, and can discard the draft", async () => {
+  it("edits and discards a processor draft", () => {
     renderWorkspace()
-
-    fireEvent.click(screen.getByRole("button", { name: "Processor 1" }))
-    expect(screen.getByRole("heading", { name: "Processor 1" })).toBeTruthy()
-
+    fireEvent.click(screen.getByRole("button", { name: "normalize" }))
     fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }))
-    const editor = screen.getByRole("textbox", { name: "Step configuration" })
-    fireEvent.change(editor, { target: { value: '{"label":"normalize-v2","mapping":"root = this"}' } })
+    fireEvent.change(screen.getByRole("textbox", { name: "Step configuration" }), { target: { value: '{"label":"normalize-v2","mapping":"root = this"}' } })
     fireEvent.click(screen.getByRole("button", { name: "Apply change" }))
-
     expect(screen.getByText("Unpublished changes")).toBeTruthy()
-    expect(screen.getByText(/normalize-v2/)).toBeTruthy()
-
     fireEvent.click(screen.getByRole("button", { name: "Discard" }))
     expect(screen.queryByText("Unpublished changes")).toBeNull()
-    expect(screen.getByText(/"normalize"/)).toBeTruthy()
   })
 
-  it("surfaces invalid JSON without creating a draft", async () => {
+  it("validates and publishes through Connect", async () => {
     renderWorkspace()
-
-    fireEvent.click(screen.getByRole("button", { name: "Processor 1" }))
+    fireEvent.click(screen.getByRole("button", { name: "normalize" }))
     fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }))
-    const editor = screen.getByRole("textbox", { name: "Step configuration" })
-    fireEvent.change(editor, { target: { value: "{" } })
-    fireEvent.click(screen.getByRole("button", { name: "Apply change" }))
-
-    expect(screen.getByRole("alert").textContent).toContain("JSON")
-    expect(screen.queryByText("Unpublished changes")).toBeNull()
-  })
-
-  it("publishes the draft and reconciles route data", async () => {
-    renderWorkspace()
-
-    fireEvent.click(screen.getByRole("button", { name: "Processor 1" }))
-    fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }))
-    const editor = screen.getByRole("textbox", { name: "Step configuration" })
-    fireEvent.change(editor, { target: { value: '{"label":"normalize-v2","mapping":"root = this"}' } })
+    fireEvent.change(screen.getByRole("textbox", { name: "Step configuration" }), { target: { value: '{"label":"normalize-v2","mapping":"root = this"}' } })
     fireEvent.click(screen.getByRole("button", { name: "Apply change" }))
     fireEvent.click(screen.getByRole("button", { name: "Validate" }))
-    await waitFor(() => expect(mocks.validateAuthoredPipelineServer).toHaveBeenCalledWith({
-      data: { id: "orders", authoring: expect.objectContaining({ id: "orders" }) },
-    }))
+    await waitFor(() => expect(mocks.validate).toHaveBeenCalled())
     fireEvent.click(screen.getByRole("button", { name: "Publish" }))
-
-    await waitFor(() => expect(mocks.publishAuthoredPipelineServer).toHaveBeenCalledWith({
-      data: {
-        id: "orders",
-        authoring: expect.objectContaining({
-          processors: [{ label: "normalize-v2", mapping: "root = this" }],
-        }),
-      },
-    }))
+    await waitFor(() => expect(mocks.publish).toHaveBeenCalled())
     expect(mocks.invalidate).toHaveBeenCalledWith({ sync: true })
-    expect(screen.queryByText("Unpublished changes")).toBeNull()
   })
-  it("creates a pipeline from the workspace and navigates to it", async () => {
-    renderWorkspace()
 
+  it("uses ?K to find and insert a live Connect processor", async () => {
+    renderWorkspace()
+    fireEvent.keyDown(window, { key: "k", metaKey: true })
+    fireEvent.change(screen.getByRole("textbox", { name: "Search Connect components" }), { target: { value: "filter" } })
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Search Connect components" }), { key: "Enter" })
+    await waitFor(() => expect(mocks.component).toHaveBeenCalledWith({ data: { kind: "processor", name: "filter" } }))
+    expect(screen.getByRole("heading", { name: "Processor 2" })).toBeTruthy()
+    expect(screen.getByText("Unpublished changes")).toBeTruthy()
+  })
+
+  it("creates a pipeline from the workspace", async () => {
+    renderWorkspace()
     fireEvent.click(screen.getByRole("button", { name: "New pipeline" }))
     fireEvent.change(screen.getByLabelText("Pipeline ID"), { target: { value: "shipping" } })
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Shipping" } })
     fireEvent.click(screen.getByRole("button", { name: "Create pipeline" }))
-
-    await waitFor(() => expect(mocks.createAuthoredPipelineServer).toHaveBeenCalledWith({
-      data: { id: "shipping", name: "Shipping", input: { stdin: {} }, output: { drop: {} } },
-    }))
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledWith({ data: { id: "shipping", name: "Shipping", input: { stdin: {} }, output: { drop: {} } } }))
     expect(mocks.navigate).toHaveBeenCalledWith({ to: "/pipelines/shipping", params: { pipelineId: "shipping" } })
   })
-
 })

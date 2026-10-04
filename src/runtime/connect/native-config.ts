@@ -94,6 +94,14 @@ export async function discoverConnectSchema(options: NativeConfigOptions = {}): 
   return result.stdout
 }
 
+export async function discoverConnectJsonSchema(
+  options: NativeConfigOptions = {},
+): Promise<import("./schema").ConnectJsonSchemaDocument> {
+  const { discoverConnectJsonSchema: discover } = await import("./schema")
+  const execute = options.execute ?? defaultExecute
+  return discover(execute, executable(options))
+}
+
 export function parseNativeConfig(value: string): NativeConnectConfig {
   const parsed = parse(value) as unknown
   if (!isObject(parsed)) throw new Error("Redpanda Connect returned a non-object configuration")

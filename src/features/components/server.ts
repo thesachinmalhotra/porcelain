@@ -31,6 +31,23 @@ export const createConnectComponentConfig = createServerFn({ method: "POST" })
     return extractComponentConfig(config, data.kind) as JsonObject
   })
 
+export const getConnectComponentSchema = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!isRecord(input) || typeof input.kind !== "string" || typeof input.name !== "string") {
+      throw new Error("Connect component kind and name are required")
+    }
+    if (!["input", "output", "processor", "buffer", "cache", "rate_limit", "metric", "tracer"].includes(input.kind)) {
+      throw new Error("Unsupported Connect component kind")
+    }
+    return { kind: input.kind, name: input.name }
+  })
+  .handler(async ({ data }) => {
+    const { discoverConnectJsonSchema } = await import("../../runtime/connect/native-config")
+    const { componentSchemaFromDocument } = await import("../../runtime/connect/schema")
+    const document = await discoverConnectJsonSchema()
+    return componentSchemaFromDocument(document, data.kind as import("../../runtime/connect/capabilities").ConnectComponentKind, data.name)
+  })
+
 export const validateConnectConfig = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
     if (!isRecord(input) || !isRecord(input.config)) throw new Error("Connect configuration is required")
