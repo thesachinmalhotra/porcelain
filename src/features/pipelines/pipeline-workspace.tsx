@@ -14,6 +14,8 @@ import type { ConnectComponentSchema } from "../../runtime/connect/schema"
 import { ComponentLibrary, PipelineCanvas, type WorkspaceComponentKind, type WorkspaceSelection } from "./pipeline-canvas"
 import { Button, IconButton } from "../../ui/primitives"
 import { NativeInspector } from "./native-inspector"
+import { MappingStudio } from "./mapping-studio"
+import { executeMappingServer } from "./mapping-server"
 
 type Props = { connectReachable: boolean; connectReady: boolean; pipelines: PipelineWorkspacePipeline[]; components?: ConnectComponentCapability[]; pipelineId?: string }
 type Step = { id: string; label: string; kind: WorkspaceSelection["kind"]; config: JsonObject }
@@ -81,6 +83,15 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
   const [componentSchema, setComponentSchema] = useState<ConnectComponentSchema | null>(null)
   const [schemaLoading, setSchemaLoading] = useState(false)
   const [schemaError, setSchemaError] = useState<string | null>(null)
+  const [mappingStudioOpen, setMappingStudioOpen] = useState(false)
+  const [mappingInput, setMappingInput] = useState(`{
+  "user": {
+    "name": "Ada"
+  }
+}`)
+  const [mappingOutput, setMappingOutput] = useState("")
+  const [mappingError, setMappingError] = useState<string | null>(null)
+  const [mappingRunning, setMappingRunning] = useState(false)
 
   useEffect(() => { if (pipelineId) setSelectedId(pipelineId) }, [pipelineId])
   const selected = pipelines.find((pipeline) => pipeline.id === selectedId) ?? pipelines[0]
@@ -89,6 +100,20 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
   const selectedStepId = selectedKey(selectedStep)
   const step = steps.find((item) => item.id === selectedStepId) ?? steps[0]
   const stepComponent = step ? Object.keys(step.config).find((key) => key !== "label") : undefined
+  const mappingConfigKey = step?.kind === "processor" ? Object.keys(step.config).find((key) => key === "mapping" || key === "bloblang") : undefined
+  const isMappingProcessor = Boolean(mappingConfigKey)
+  const mappingText = mappingConfigKey ? String(step?.config[mappingConfigKey] ?? "") : ""
+
+  useEffect(() => {
+    if (!isMappingProcessor) {
+      setMappingStudioOpen(false)
+      setMappingOutput("")
+      setMappingError(null)
+      return
+    }
+    setMappingOutput("")
+    setMappingError(null)
+  }, [selectedId, selectedStep.kind, selectedStep.kind === "processor" ? selectedStep.index : -1, mappingConfigKey, isMappingProcessor])
 
   useEffect(() => {
     let cancelled = false
@@ -167,6 +192,26 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
       }
       setInspectorMode("friendly"); setEditing(false)
     } catch (value) { setError(value instanceof Error ? value.message : "Redpanda Connect component generation failed") }
+  }
+
+  const runMapping = async () => {
+    if (!isMappingProcessor || !mappingConfigKey) return
+    setMappingRunning(true)
+    setMappingError(null)
+    try {
+      const result = await executeMappingServer({ data: { mapping: mappingText, input: mappingInput } })
+      if (!result.ok) {
+        setMappingOutput("")
+        setMappingError(result.error)
+        return
+      }
+      setMappingOutput(result.output)
+    } catch (value) {
+      setMappingOutput("")
+      setMappingError(value instanceof Error ? value.message : "Connect mapping execution failed")
+    } finally {
+      setMappingRunning(false)
+    }
   }
 
   const validateWithConnect = async () => {
@@ -258,21 +303,42 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
       <ComponentLibrary components={components} query={libraryQuery} onQueryChange={setLibraryQuery} onOpenCommand={openCommand} onChoose={(component, kind) => void insertComponent({ component, kind })} />
       <main className="workspace-canvas-column">
         <div className="workspace-canvas-toolbar">
-          <div><span className="eyebrow">Workspace</span><strong>Stream topology</strong></div>
-          <div className="workspace-canvas-toolbar-actions">
+          <div><span className="eyebrow">Workspace</span><strong>{mappingStudioOpen ? "Mapping Studio" : "Stream topology"}</strong></div>
+          {!mappingStudioOpen && <div className="workspace-canvas-toolbar-actions">
             <button type="button" className="workspace-toolbar-button" onClick={toggleBuffer}>{authoring.buffer ? "Remove buffer" : "Add buffer"}</button>
             <button type="button" className="workspace-toolbar-button" onClick={addProcessor}><Icon name="plus" />Processor</button>
-          </div>
+          </div>}
         </div>
         <div className="workspace-canvas-stage">
-          <PipelineCanvas
-            authoring={authoring}
-            runtime={runtime}
-            selected={selectedStep}
-            onSelect={(selection) => { setSelectedStep(selection); setInspectorMode("friendly"); setValidation(null); setError(null) }}
-            onAuthoringChange={(next) => updateDraft(next)}
-          />
-          <div className="workspace-canvas-hint"><span><kbd>?K</kbd> add component</span><span>Drag to arrange</span><span>Scroll to zoom</span></div>
+          {mappingStudioOpen && isMappingProcessor && step && mappingConfigKey ? <MappingStudio
+            componentName={stepComponent ?? "mapping"}
+            mapping={mappingText}
+            input={mappingInput}
+            output={mappingOutput}
+            error={mappingError}
+            running={mappingRunning}
+            onMappingChange={(value) => updateSelectedConfig({ ...step.config, [mappingConfigKey]: value })}
+            onInputChange={(value) => { setMappingInput(value); setMappingError(null) }}
+            onRun={() => void runMapping()}
+            onClose={() => setMappingStudioOpen(false)}
+          /> : <>
+            <PipelineCanvas
+              authoring={authoring}
+              runtime={runtime}
+              selected={selectedStep}
+              onSelect={(selection) => {
+                setSelectedStep(selection)
+                setInspectorMode("friendly")
+                setValidation(null)
+                setError(null)
+                const next = steps.find((item) => item.id === selectedKey(selection))
+                const nextMapping = next?.kind === "processor" && Object.keys(next.config).some((key) => key === "mapping" || key === "bloblang")
+                setMappingStudioOpen(Boolean(nextMapping))
+              }}
+              onAuthoringChange={(next) => updateDraft(next)}
+            />
+            <div className="workspace-canvas-hint"><span><kbd>?K</kbd> add component</span><span>Drag to arrange</span><span>Scroll to zoom</span></div>
+          </>}
         </div>
         <div className="workspace-canvas-footer">
           <span><span className={`status-dot ${liveConnectReady ? "online" : "offline"}`} />{!liveConnectReachable ? "Connect unreachable" : liveConnectReady ? "Redpanda Connect ready" : "Connect not ready"}</span>
@@ -306,6 +372,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
             <div className="workspace-inspector-actions">
               {step.kind === "processor" && <><button className="button button-secondary" type="button" onClick={() => moveProcessor(-1)} disabled={selectedStep.kind !== "processor" || selectedStep.index === 0}>Move up</button><button className="button button-secondary" type="button" onClick={() => moveProcessor(1)} disabled={selectedStep.kind !== "processor" || selectedStep.index === (authoring.processors?.length ?? 1) - 1}>Move down</button><button className="button button-danger-ghost" type="button" onClick={removeProcessor}>Delete processor</button></>}
               {step.kind === "buffer" && <button className="button button-secondary" type="button" onClick={toggleBuffer}>Remove buffer</button>}
+              {isMappingProcessor && <button className="button button-primary" type="button" onClick={() => { setMappingError(null); setMappingStudioOpen(true) }}><Icon name="arrow" />Open Mapping Studio</button>}
               {inspectorMode === "friendly" && <button className="button button-secondary" type="button" onClick={() => { beginEdit(); setInspectorMode("advanced") }}>Edit as JSON</button>}
               {inspectorMode === "advanced" && <><button className="button button-primary" type="button" onClick={applyEdit}>Apply change</button><button className="button button-ghost" type="button" onClick={() => setEditing(false)}>Cancel</button></>}
               {inspectorMode === "raw" && <button className="button button-primary" type="button" onClick={applyRaw}>Apply source</button>}
