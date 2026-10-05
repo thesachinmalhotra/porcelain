@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest"
-import { publishPipelineDraft, validatePipelineDraft } from "../../src/pipeline/publish"
+import { publishPipelineDraft, validatePipelineDraft } from "../../src/pipeline/publish.server"
 
 const mocks = vi.hoisted(() => ({
   lintConnectConfig: vi.fn().mockResolvedValue({ valid: true, stdout: "", stderr: "" }),
 }))
 
-vi.mock("../../src/runtime/connect/native-config", () => ({
+vi.mock("../../src/runtime/connect/native-config.server", () => ({
   lintConnectConfig: mocks.lintConnectConfig,
 }))
 

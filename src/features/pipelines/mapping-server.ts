@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start"
-import { executeConnectBloblang } from "../../runtime/connect/bloblang"
 
 type MappingExecutionInput = {
   mapping: string
@@ -28,6 +27,7 @@ function validate(input: unknown): MappingExecutionInput {
 export const executeMappingServer = createServerFn({ method: "POST" })
   .validator(validate)
   .handler(async ({ data }) => {
+    const { executeConnectBloblang } = await import("../../runtime/connect/bloblang.server")
     const result = await executeConnectBloblang(data.mapping, data.input)
     return {
       ok: result.exitCode === 0,

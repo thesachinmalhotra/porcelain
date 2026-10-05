@@ -1,5 +1,5 @@
 import { authoringToConnectConfig, validatePipelineAuthoring, type PipelineAuthoring } from "./authoring"
-import { lintConnectConfig } from "../runtime/connect/native-config"
+import { lintConnectConfig } from "../runtime/connect/native-config.server"
 import type { ConnectStreamStats } from "../runtime/connect/client"
 import type { PipelineDefinition, PipelineUpdate } from "./store"
 

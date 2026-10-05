@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { PipelineWorkspace } from "../../features/pipelines/pipeline-workspace"
 import { getPipelineWorkspace } from "../../features/pipelines/server"
 import { getComponents } from "../../features/components/server"
-import type { ConnectComponentCapability } from "../../runtime/connect/capabilities"
+import type { ConnectComponentCapability } from "../../runtime/connect/capabilities.server"
 
 export const Route = createFileRoute("/pipelines/$pipelineId")({
   loader: async ({ params }) => {

@@ -5,25 +5,40 @@ import {
   pipelineSummaryFromDefinition,
   type PipelineWorkspacePipeline,
 } from "../../pipeline/pipeline"
-import { createPipelineLifecycle } from "../../pipeline/lifecycle"
-import { createAuthoredPipeline, updateAuthoredPipeline } from "../../pipeline/authoring-lifecycle"
 import { validatePipelineAuthoring, type PipelineAuthoring } from "../../pipeline/authoring"
-import { publishPipelineDraft, validatePipelineDraft } from "../../pipeline/publish"
-import { createPipelineStore } from "../../pipeline/store"
-import { createConnectClient } from "../../runtime/connect/client"
-import { createActivityStore } from "../../operational/activity"
-import type { PipelineCreate, PipelineDefinition, PipelineUpdate } from "../../pipeline/store"
+import type { PipelineCreate, PipelineDefinition, PipelineRevision, PipelineUpdate } from "../../pipeline/store.server"
+import type { ConnectStreamStats } from "../../runtime/connect/client"
 
-type PipelineStore = ReturnType<typeof createPipelineStore>
-type ConnectRuntimeClient = Pick<
-  ReturnType<typeof createConnectClient>,
-  "probe" | "listStreams" | "getStreamStats"
->
-type PipelineLifecycle = ReturnType<typeof createPipelineLifecycle>
+type PipelineStore = {
+  list(): Promise<PipelineDefinition[]>
+  get(id: string): Promise<PipelineDefinition | null>
+  getRevision(id: string): Promise<PipelineRevision | null>
+  createWithRevision(input: PipelineCreate): Promise<PipelineDefinition>
+  updateWithRevision(id: string, update: PipelineUpdate): Promise<PipelineDefinition>
+  delete(id: string): Promise<void>
+}
+type ConnectRuntimeClient = {
+  probe(): Promise<{ reachable: boolean; ready: boolean }>
+  listStreams(): Promise<Record<string, { active: boolean; uptime: number; uptime_str: string }>>
+  getStreamStats(id: string): Promise<ConnectStreamStats>
+}
+type ConnectClient = ConnectRuntimeClient & {
+  getStream(id: string): Promise<unknown>
+  createStream(id: string, config: Record<string, unknown>): Promise<void>
+  updateStream(id: string, config: Record<string, unknown>): Promise<void>
+  deleteStream(id: string): Promise<void>
+}
+type PipelineLifecycle = {
+  createPipeline(definition: PipelineCreate): Promise<PipelineDefinition>
+  updatePipeline(id: string, update: PipelineUpdate): Promise<PipelineDefinition>
+  deletePipeline(id: string): Promise<void>
+  publishPipeline(id: string, update: PipelineUpdate): Promise<{ pipeline: PipelineDefinition; connectStreamId: string; operation: "created" | "updated" }>
+}
 type PipelineWorkspaceDependencies = { store: PipelineStore; client: ConnectRuntimeClient }
-type PipelineCommandDependencies = { store: PipelineStore; client: ReturnType<typeof createConnectClient> }
+type PipelineLifecycleDependencies = { store: PipelineStore; client: ConnectClient }
 
-function connectClient() {
+async function connectClient() {
+  const { createConnectClient } = await import("../../runtime/connect/client")
   return createConnectClient({
     baseUrl: process.env.PORCELAIN_CONNECT_URL ?? "http://127.0.0.1:4195",
   })
@@ -94,12 +109,10 @@ export async function loadPipelineWorkspace({
   }
 }
 
-function createLifecycle({ store, client }: PipelineCommandDependencies): PipelineLifecycle {
-  return createPipelineLifecycle({
-    store,
-    client,
-    activity: createActivityStore(),
-  })
+async function createLifecycle({ store, client }: PipelineLifecycleDependencies): Promise<PipelineLifecycle> {
+  const { createPipelineLifecycle } = await import("../../pipeline/lifecycle")
+  const { createActivityStore } = await import("../../operational/activity")
+  return createPipelineLifecycle({ store, client, activity: createActivityStore() })
 }
 
 export async function createAuthoredPipelineCommand({
@@ -109,6 +122,7 @@ export async function createAuthoredPipelineCommand({
   lifecycle: Pick<PipelineLifecycle, "createPipeline">
   authoring: PipelineAuthoring
 }) {
+  const { createAuthoredPipeline } = await import("../../pipeline/authoring-lifecycle")
   return createAuthoredPipeline({ lifecycle, authoring })
 }
 
@@ -121,6 +135,7 @@ export async function updateAuthoredPipelineCommand({
   id: string
   authoring: PipelineAuthoring
 }) {
+  const { updateAuthoredPipeline } = await import("../../pipeline/authoring-lifecycle")
   return updateAuthoredPipeline({ lifecycle, id, authoring })
 }
 
@@ -158,8 +173,8 @@ export async function deletePipelineCommand({
 
 export const getPipelineWorkspace = createServerFn({ method: "GET" }).handler(async () =>
   loadPipelineWorkspace({
-    store: createPipelineStore(),
-    client: connectClient(),
+    store: (await import("../../pipeline/store.server")).createPipelineStore(),
+    client: await connectClient(),
   }),
 )
 
@@ -240,9 +255,9 @@ export const createPipeline = createServerFn({ method: "POST" })
   .validator(validatePipelineDefinition)
   .handler(async ({ data }) => {
     const pipeline = await createPipelineCommand({
-      lifecycle: createLifecycle({
-        store: createPipelineStore(),
-        client: connectClient(),
+      lifecycle: await createLifecycle({
+        store: (await import("../../pipeline/store.server")).createPipelineStore(),
+        client: await connectClient(),
       }),
       definition: data,
     })
@@ -253,9 +268,9 @@ export const updatePipeline = createServerFn({ method: "POST" })
   .validator(validatePipelineUpdate)
   .handler(async ({ data }) => {
     const pipeline = await updatePipelineCommand({
-      lifecycle: createLifecycle({
-        store: createPipelineStore(),
-        client: connectClient(),
+      lifecycle: await createLifecycle({
+        store: (await import("../../pipeline/store.server")).createPipelineStore(),
+        client: await connectClient(),
       }),
       id: data.id,
       update: data.update,
@@ -267,9 +282,9 @@ export const deletePipeline = createServerFn({ method: "POST" })
   .validator(validateId)
   .handler(async ({ data }) => {
     await deletePipelineCommand({
-      lifecycle: createLifecycle({
-        store: createPipelineStore(),
-        client: connectClient(),
+      lifecycle: await createLifecycle({
+        store: (await import("../../pipeline/store.server")).createPipelineStore(),
+        client: await connectClient(),
       }),
       id: data,
     })
@@ -279,9 +294,9 @@ export const createAuthoredPipelineServer = createServerFn({ method: "POST" })
   .validator(validateAuthoredCreate)
   .handler(async ({ data }) => {
     const pipeline = await createAuthoredPipelineCommand({
-      lifecycle: createLifecycle({
-        store: createPipelineStore(),
-        client: connectClient(),
+      lifecycle: await createLifecycle({
+        store: (await import("../../pipeline/store.server")).createPipelineStore(),
+        client: await connectClient(),
       }),
       authoring: data,
     })
@@ -291,23 +306,28 @@ export const createAuthoredPipelineServer = createServerFn({ method: "POST" })
 export const validateAuthoredPipelineServer = createServerFn({ method: "POST" })
   .validator(validateAuthoredPipeline)
   .handler(async ({ data }) => {
-    const store = createPipelineStore()
+    const store = (await import("../../pipeline/store.server")).createPipelineStore()
     const existing = await store.get(data.id)
-    return validatePipelineDraft(data.authoring, connectClient(), existing?.connectStreamId ?? data.id)
+    const { validatePipelineDraft } = await import("../../pipeline/publish.server")
+    return validatePipelineDraft(data.authoring, await connectClient(), existing?.connectStreamId ?? data.id)
   })
 
 export const publishAuthoredPipelineServer = createServerFn({ method: "POST" })
   .validator(validateAuthoredPipeline)
   .handler(async ({ data }) => {
-    const store = createPipelineStore()
+    const store = (await import("../../pipeline/store.server")).createPipelineStore()
     const existing = await store.get(data.id)
+    const { publishPipelineDraft } = await import("../../pipeline/publish.server")
+    const { createPipelineLifecycle } = await import("../../pipeline/lifecycle")
+    const { createActivityStore } = await import("../../operational/activity")
+    const client = await connectClient()
     return publishPipelineDraft({
       lifecycle: createPipelineLifecycle({
         store,
-        client: connectClient(),
+        client: await connectClient(),
         activity: createActivityStore(),
       }),
-      client: connectClient(),
+      client,
       authoring: data.authoring,
       connectStreamId: existing?.connectStreamId ?? data.id,
     })

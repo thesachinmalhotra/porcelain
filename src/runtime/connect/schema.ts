@@ -1,5 +1,5 @@
 import type { JsonValue } from "../../pipeline/authoring"
-import type { ConnectComponentKind } from "./capabilities"
+import type { ConnectComponentKind } from "./capabilities.server"
 
 export type ConnectSchemaNode = {
   type?: "string" | "number" | "integer" | "boolean" | "object" | "array"

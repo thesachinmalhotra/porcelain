@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { executeConnectBloblang } from "../../src/runtime/connect/bloblang"
+import { executeConnectBloblang } from "../../src/runtime/connect/bloblang.server"
 
 const executable = process.env.PORCELAIN_RPK_PATH ?? "/home/sachin/.local/bin/rpk"
 

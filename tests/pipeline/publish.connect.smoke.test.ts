@@ -3,9 +3,9 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { ConnectRequestError, createConnectClient } from "../../src/runtime/connect/client"
-import { publishPipelineDraft } from "../../src/pipeline/publish"
+import { publishPipelineDraft } from "../../src/pipeline/publish.server"
 import { createPipelineLifecycle } from "../../src/pipeline/lifecycle"
-import { createPipelineStore } from "../../src/pipeline/store"
+import { createPipelineStore } from "../../src/pipeline/store.server"
 
 const run = describe.runIf(process.env.CI === "true")
 const baseUrl = process.env.PORCELAIN_CONNECT_URL ?? "http://127.0.0.1:4195"

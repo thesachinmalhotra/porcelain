@@ -1,14 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
-import { join } from "node:path"
-import { execFile } from "node:child_process"
-import { promisify } from "node:util"
 import { stringify } from "yaml"
 import type { JsonObject, PipelineAuthoring } from "../../pipeline/authoring"
 import { authoringToConnectConfig, validatePipelineAuthoring } from "../../pipeline/authoring"
-import { createPipelineStore } from "../../pipeline/store"
-
-const execFileAsync = promisify(execFile)
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -19,6 +12,9 @@ function executable() {
 }
 
 async function runRpk(args: string[], cwd: string) {
+  const { execFile } = await import("node:child_process")
+  const { promisify } = await import("node:util")
+  const execFileAsync = promisify(execFile)
   try {
     const result = await execFileAsync(executable(), args, { cwd, maxBuffer: 16 * 1024 * 1024 })
     return { stdout: result.stdout, stderr: result.stderr, exitCode: 0 }
@@ -35,6 +31,8 @@ export const runPipelineNativeTest = createServerFn({ method: "POST" })
     return { authoring: input.authoring as PipelineAuthoring, test: input.test }
   })
   .handler(async ({ data }) => {
+    const { mkdtemp, rm, writeFile } = await import("node:fs/promises")
+    const { join } = await import("node:path")
     const directory = await mkdtemp(join(process.cwd(), ".porcelain-connect-test-"))
     try {
       await writeFile(join(directory, "pipeline.yaml"), stringify(authoringToConnectConfig(data.authoring), { lineWidth: 120 }), "utf8")
@@ -53,6 +51,7 @@ export const getPipelineDiff = createServerFn({ method: "POST" })
     return { id: input.id, authoring: input.authoring as PipelineAuthoring }
   })
   .handler(async ({ data }) => {
+    const { createPipelineStore } = await import("../../pipeline/store.server")
     const revision = await createPipelineStore().getRevision(data.id)
     const after = authoringToConnectConfig(data.authoring)
     if (!revision) return { version: null, checksum: null, changed: true, before: null, after }

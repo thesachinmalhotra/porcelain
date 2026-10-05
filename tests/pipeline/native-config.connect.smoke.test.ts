@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { createConnectConfig, discoverConnectSchema, echoConnectConfig, lintConnectConfig } from "../../src/runtime/connect/native-config"
+import { createConnectConfig, discoverConnectSchema, echoConnectConfig, lintConnectConfig } from "../../src/runtime/connect/native-config.server"
 
 describe.runIf(process.env.CI === "true")("native Connect integration", () => {
   it("uses the installed Connect CLI for generation, linting, echoing, and schema discovery", async () => {

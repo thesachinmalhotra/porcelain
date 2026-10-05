@@ -13,7 +13,7 @@ export type ComponentsFilter =
   | "tracer"
 
 export const getComponents = createServerFn({ method: "GET" }).handler(async () => {
-  const { discoverConnectCapabilities } = await import("../../runtime/connect/capabilities")
+  const { discoverConnectCapabilities } = await import("../../runtime/connect/capabilities.server")
   return discoverConnectCapabilities()
 })
 
@@ -25,7 +25,7 @@ export const createConnectComponentConfig = createServerFn({ method: "POST" })
     return { kind: input.kind, name: input.name }
   })
   .handler(async ({ data }) => {
-    const { createConnectConfig } = await import("../../runtime/connect/native-config")
+    const { createConnectConfig } = await import("../../runtime/connect/native-config.server")
     const expression = componentExpression(data.kind, data.name)
     const config = await createConnectConfig(expression)
     return extractComponentConfig(config, data.kind) as JsonObject
@@ -42,10 +42,10 @@ export const getConnectComponentSchema = createServerFn({ method: "POST" })
     return { kind: input.kind, name: input.name }
   })
   .handler(async ({ data }) => {
-    const { discoverConnectJsonSchema } = await import("../../runtime/connect/native-config")
+    const { discoverConnectJsonSchema } = await import("../../runtime/connect/native-config.server")
     const { componentSchemaFromDocument } = await import("../../runtime/connect/schema")
     const document = await discoverConnectJsonSchema()
-    return componentSchemaFromDocument(document, data.kind as import("../../runtime/connect/capabilities").ConnectComponentKind, data.name)
+    return componentSchemaFromDocument(document, data.kind as import("../../runtime/connect/capabilities.server").ConnectComponentKind, data.name)
   })
 
 export const validateConnectConfig = createServerFn({ method: "POST" })
@@ -54,7 +54,7 @@ export const validateConnectConfig = createServerFn({ method: "POST" })
     return { config: input.config as JsonObject }
   })
   .handler(async ({ data }) => {
-    const { lintConnectConfig } = await import("../../runtime/connect/native-config")
+    const { lintConnectConfig } = await import("../../runtime/connect/native-config.server")
     return lintConnectConfig(data.config)
   })
 
@@ -64,7 +64,7 @@ export const normalizeConnectConfig = createServerFn({ method: "POST" })
     return { config: input.config as JsonObject }
   })
   .handler(async ({ data }) => {
-    const { echoConnectConfig } = await import("../../runtime/connect/native-config")
+    const { echoConnectConfig } = await import("../../runtime/connect/native-config.server")
     return (await echoConnectConfig(data.config)) as JsonObject
   })
 

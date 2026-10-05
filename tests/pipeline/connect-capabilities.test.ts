@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { discoverConnectCapabilities } from "../../src/runtime/connect/capabilities"
+import { discoverConnectCapabilities } from "../../src/runtime/connect/capabilities.server"
 
 describe("Connect capability discovery", () => {
   it("discovers the installed Connect component universe through rpk", async () => {

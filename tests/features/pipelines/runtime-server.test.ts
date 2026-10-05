@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { loadPipelineRuntime } from "../../../src/features/pipelines/runtime-server"
-import { createPipelineStore } from "../../../src/pipeline/store"
+import { createPipelineStore } from "../../../src/pipeline/store.server"
 
 const dirs: string[] = []
 afterEach(async () => { await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))) })

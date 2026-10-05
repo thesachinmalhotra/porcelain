@@ -18,6 +18,7 @@ import { Route as RuntimeRouteImport } from './routes/runtime'
 import { Route as SchemasRouteImport } from './routes/schemas'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StreamsRouteImport } from './routes/streams'
+import { Route as PipelinesIndexRouteImport } from './routes/pipelines/index'
 import { Route as PipelinesPipelineIdRouteImport } from './routes/pipelines/$pipelineId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -65,6 +66,11 @@ const StreamsRoute = StreamsRouteImport.update({
   path: '/streams',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PipelinesIndexRoute = PipelinesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PipelinesRoute,
+} as any)
 const PipelinesPipelineIdRoute = PipelinesPipelineIdRouteImport.update({
   id: '/$pipelineId',
   path: '/$pipelineId',
@@ -82,18 +88,19 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/streams': typeof StreamsRoute
   '/pipelines/$pipelineId': typeof PipelinesPipelineIdRoute
+  '/pipelines/': typeof PipelinesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
   '/components': typeof ComponentsRoute
   '/overview': typeof OverviewRoute
-  '/pipelines': typeof PipelinesRouteWithChildren
   '/runtime': typeof RuntimeRoute
   '/schemas': typeof SchemasRoute
   '/settings': typeof SettingsRoute
   '/streams': typeof StreamsRoute
   '/pipelines/$pipelineId': typeof PipelinesPipelineIdRoute
+  '/pipelines': typeof PipelinesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -107,6 +114,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/streams': typeof StreamsRoute
   '/pipelines/$pipelineId': typeof PipelinesPipelineIdRoute
+  '/pipelines/': typeof PipelinesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -121,18 +129,19 @@ export interface FileRouteTypes {
     | '/settings'
     | '/streams'
     | '/pipelines/$pipelineId'
+    | '/pipelines/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/activity'
     | '/components'
     | '/overview'
-    | '/pipelines'
     | '/runtime'
     | '/schemas'
     | '/settings'
     | '/streams'
     | '/pipelines/$pipelineId'
+    | '/pipelines'
   id:
     | '__root__'
     | '/'
@@ -145,6 +154,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/streams'
     | '/pipelines/$pipelineId'
+    | '/pipelines/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -224,6 +234,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StreamsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pipelines/': {
+      id: '/pipelines/'
+      path: '/'
+      fullPath: '/pipelines/'
+      preLoaderRoute: typeof PipelinesIndexRouteImport
+      parentRoute: typeof PipelinesRoute
+    }
     '/pipelines/$pipelineId': {
       id: '/pipelines/$pipelineId'
       path: '/$pipelineId'
@@ -236,10 +253,12 @@ declare module '@tanstack/react-router' {
 
 interface PipelinesRouteChildren {
   PipelinesPipelineIdRoute: typeof PipelinesPipelineIdRoute
+  PipelinesIndexRoute: typeof PipelinesIndexRoute
 }
 
 const PipelinesRouteChildren: PipelinesRouteChildren = {
   PipelinesPipelineIdRoute: PipelinesPipelineIdRoute,
+  PipelinesIndexRoute: PipelinesIndexRoute,
 }
 
 const PipelinesRouteWithChildren = PipelinesRoute._addFileChildren(

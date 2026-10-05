@@ -6,7 +6,7 @@ import {
   lintConnectConfig,
   parseNativeConfig,
   serializeNativeConfig,
-} from "../../src/runtime/connect/native-config"
+} from "../../src/runtime/connect/native-config.server"
 
 const config = {
   input: { generate: { interval: "1s" } },

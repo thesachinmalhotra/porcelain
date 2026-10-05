@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
-import type { ConnectComponentCapability } from "../../src/runtime/connect/capabilities"
+import type { ConnectComponentCapability } from "../../src/runtime/connect/capabilities.server"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 afterEach(() => { cleanup(); vi.clearAllMocks() })

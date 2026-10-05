@@ -20,7 +20,7 @@ import {
 import type { JsonObject, PipelineAuthoring } from "../../pipeline/authoring"
 import { connectPipelineAuthoring, projectPipelineAuthoring, validatePipelineConnection } from "../../pipeline/authoring"
 import { Icon, type IconName } from "../../components/app-shell"
-import type { ConnectComponentCapability } from "../../runtime/connect/capabilities"
+import type { ConnectComponentCapability } from "../../runtime/connect/capabilities.server"
 import type { PipelineRuntime } from "../../pipeline/pipeline"
 import "@xyflow/react/dist/style.css"
 

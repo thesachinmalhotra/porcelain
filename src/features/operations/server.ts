@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { loadPipelineWorkspace } from "../pipelines/server"
 import { createActivityStore } from "../../operational/activity"
-import { createPipelineStore } from "../../pipeline/store"
+import { createPipelineStore } from "../../pipeline/store.server"
 import { createConnectClient } from "../../runtime/connect/client"
 
 export const getOperationalWorkspace = createServerFn({ method: "GET" }).handler(async () => {
