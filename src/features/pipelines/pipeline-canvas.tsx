@@ -146,6 +146,7 @@ function buildNodes(
   runtime: PipelineRuntime,
   positions: Map<string, { x: number; y: number }>,
   actions: Pick<PipelineNodeData, "onDuplicate" | "onDelete" | "onInspect">,
+  selectedId: string | null,
 ): PipelineNode[] {
   const projection = projectPipelineAuthoring(authoring)
   const items: Array<{ id: string; kind: WorkspaceComponentKind; config: JsonObject; selection: WorkspaceSelection }> = [
@@ -170,6 +171,7 @@ function buildNodes(
     deletable: false,
     selectable: true,
     focusable: true,
+    selected: item.id === selectedId,
   }))
 }
 
@@ -218,22 +220,25 @@ export function PipelineCanvas({
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null)
   const selectedId = selected ? selectionKey(selected) : null
 
+  const nodeActionsRef = useRef({
+    onDuplicate,
+    onDelete,
+    onInspect: onSelect,
+  })
+  nodeActionsRef.current = { onDuplicate, onDelete, onInspect: onSelect }
+
   const nodeActions = useMemo(() => ({
-    onDuplicate: (selection: WorkspaceSelection) => onDuplicate([selection]),
-    onDelete: (selection: WorkspaceSelection) => onDelete([selection]),
-    onInspect: (selection: WorkspaceSelection) => onSelect(selection),
-  }), [onDelete, onDuplicate, onSelect])
+    onDuplicate: (selection: WorkspaceSelection) => nodeActionsRef.current.onDuplicate([selection]),
+    onDelete: (selection: WorkspaceSelection) => nodeActionsRef.current.onDelete([selection]),
+    onInspect: (selection: WorkspaceSelection) => nodeActionsRef.current.onInspect(selection),
+  }), [])
 
   const rebuild = useCallback(() => {
-    setNodes(buildNodes(authoring, runtime, positions.current, nodeActions))
+    setNodes(buildNodes(authoring, runtime, positions.current, nodeActions, selectedId))
     setEdges(buildEdges(authoring))
-  }, [authoring, nodeActions, runtime, setEdges, setNodes])
+  }, [authoring, nodeActions, runtime, selectedId, setEdges, setNodes])
 
   useEffect(() => { rebuild() }, [rebuild])
-
-  useEffect(() => {
-    setNodes((current) => current.map((node) => ({ ...node, selected: node.id === selectedId })))
-  }, [selectedId, setNodes])
 
   useEffect(() => {
     const close = () => setContextMenu(null)
@@ -298,9 +303,12 @@ export function PipelineCanvas({
         onNodeClick={(_, node) => onSelect(node.data.selection)}
         onSelectionChange={({ nodes: nextNodes }) => {
           const selections = nextNodes.map((node) => selectionFromNode(node as PipelineNode))
+          const nextKeys = selections.map(selectionKey).sort().join("|")
+          const currentKeys = selected ? selectionKey(selected) : ""
+          if (selections.length <= 1 && nextKeys === currentKeys) return
           onSelectMany(selections)
-          if (selections.length === 1) onSelect(selections[0])
-          if (selections.length === 0) onSelect(null)
+          if (selections.length === 1 && nextKeys !== currentKeys) onSelect(selections[0])
+          if (selections.length === 0 && currentKeys !== "") onSelect(null)
         }}
         onNodeContextMenu={(event, node) => {
           event.preventDefault()
