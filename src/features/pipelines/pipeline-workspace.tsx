@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useRouter } from "@tanstack/react-router"
 import { parse, stringify } from "yaml"
 import type { JsonObject, PipelineAuthoring, PipelineAuthoringComponent } from "../../pipeline/authoring"
@@ -14,8 +14,10 @@ import type { ConnectComponentSchema } from "../../runtime/connect/schema"
 import { ComponentLibrary, PipelineCanvas, type WorkspaceComponentKind, type WorkspaceSelection } from "./pipeline-canvas"
 import { Button, IconButton } from "../../ui/primitives"
 import { NativeInspector } from "./native-inspector"
-import { MappingStudio } from "./mapping-studio"
 import { executeMappingServer } from "./mapping-server"
+import { createHistory, pushHistory, redoHistory, undoHistory, type HistoryState } from "./workspace-history"
+import { filterCommands, type WorkspaceCommand } from "./commands"
+import { DeepWorkSurface, type DeepWorkContext } from "./deep-work"
 
 type Props = { connectReachable: boolean; connectReady: boolean; pipelines: PipelineWorkspacePipeline[]; components?: ConnectComponentCapability[]; pipelineId?: string }
 type Step = { id: string; label: string; kind: WorkspaceSelection["kind"]; config: JsonObject }
@@ -34,29 +36,60 @@ function stepsFor(authoring: PipelineAuthoring): Step[] {
   ]
 }
 
-function CommandPalette({ open, query, options, activeIndex, onQueryChange, onActiveIndexChange, onChoose, onClose }: {
-  open: boolean; query: string; options: CommandOption[]; activeIndex: number; onQueryChange: (value: string) => void
-  onActiveIndexChange: (value: number) => void; onChoose: (option: CommandOption) => void; onClose: () => void
+function CommandPalette({
+  open,
+  query,
+  commands,
+  options,
+  context,
+  activeIndex,
+  onQueryChange,
+  onActiveIndexChange,
+  onChooseCommand,
+  onChooseComponent,
+  onClose,
+}: {
+  open: boolean
+  query: string
+  commands: WorkspaceCommand[]
+  options: CommandOption[]
+  context: Parameters<typeof filterCommands>[2]
+  activeIndex: number
+  onQueryChange: (value: string) => void
+  onActiveIndexChange: (value: number) => void
+  onChooseCommand: (command: WorkspaceCommand) => void
+  onChooseComponent: (option: CommandOption) => void
+  onClose: () => void
 }) {
   if (!open) return null
+  const commandItems = filterCommands(commands, query, context)
+  const componentItems = query.trim() ? options.filter((option) => option.component.name.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 40) : []
+  const total = commandItems.length + componentItems.length
+  const choose = (index: number) => {
+    if (index < commandItems.length) onChooseCommand(commandItems[index])
+    else if (componentItems[index - commandItems.length]) onChooseComponent(componentItems[index - commandItems.length])
+  }
   return <div className="workspace-command-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
     <section className="workspace-command" role="dialog" aria-modal="true" aria-labelledby="workspace-command-title">
-      <div className="workspace-command-input-row"><Icon name="search" /><input autoFocus id="workspace-command-title" aria-label="Search Connect components" placeholder="Add a Connect component?" value={query}
+      <div className="workspace-command-input-row"><Icon name="search" /><input autoFocus id="workspace-command-title" aria-label="Search Connect components" placeholder="Search commands or Connect components" value={query}
         onChange={(event) => onQueryChange(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === "Escape") onClose()
-          if (event.key === "ArrowDown") { event.preventDefault(); onActiveIndexChange(Math.min(activeIndex + 1, Math.max(0, options.length - 1))) }
+          if (event.key === "Escape") { event.preventDefault(); onClose() }
+          if (event.key === "ArrowDown") { event.preventDefault(); onActiveIndexChange(Math.min(activeIndex + 1, Math.max(0, total - 1))) }
           if (event.key === "ArrowUp") { event.preventDefault(); onActiveIndexChange(Math.max(activeIndex - 1, 0)) }
-          if (event.key === "Enter" && options[activeIndex]) { event.preventDefault(); onChoose(options[activeIndex]) }
+          if (event.key === "Enter") { event.preventDefault(); choose(activeIndex) }
         }} /><kbd>ESC</kbd></div>
-      <div className="workspace-command-meta"><span>Redpanda Connect</span><span>{options.length} results</span></div>
-      <div className="workspace-command-list">{options.map((option, index) =>
-        <button className={`workspace-command-item${index === activeIndex ? " active" : ""}`} key={`${option.kind}:${option.component.name}`} type="button" onMouseEnter={() => onActiveIndexChange(index)} onClick={() => onChoose(option)}>
-          <span className="workspace-command-item-icon"><Icon name={option.kind === "input" ? "database" : option.kind === "output" ? "arrow" : "layers"} /></span>
-          <span className="workspace-command-item-copy"><strong>{option.component.name}</strong><small>{option.kind}{option.component.status ? ` ? ${option.component.status}` : ""}</small></span><Icon name="arrow" />
-        </button>
-      )}{!options.length && <div className="workspace-command-empty">No installed Connect components match.</div>}</div>
-      <div className="workspace-command-footer"><span><kbd>up</kbd><kbd>down</kbd> navigate</span><span><kbd>Enter</kbd> insert</span><span><kbd>Esc</kbd> close</span></div>
+      <div className="workspace-command-meta"><span>{query ? "Search results" : "Workspace commands"}</span><span>{total}</span></div>
+      <div className="workspace-command-list">
+        {commandItems.map((command, index) => <button className={"workspace-command-item" + (index === activeIndex ? " active" : "")} key={command.id} type="button" onMouseEnter={() => onActiveIndexChange(index)} onClick={() => onChooseCommand(command)}>
+          <span className="workspace-command-item-icon"><Icon name={command.group === "Deep work" ? "terminal" : command.group === "Edit" ? "layers" : "grid"} /></span><span className="workspace-command-item-copy"><strong>{command.title}</strong><small>{command.description ?? command.group}</small></span>{command.shortcut && <kbd>{command.shortcut}</kbd>}
+        </button>)}
+        {componentItems.map((option, offset) => { const index = commandItems.length + offset; return <button className={"workspace-command-item" + (index === activeIndex ? " active" : "")} key={option.kind + ":" + option.component.name} type="button" onMouseEnter={() => onActiveIndexChange(index)} onClick={() => onChooseComponent(option)}>
+          <span className="workspace-command-item-icon"><Icon name={option.kind === "input" ? "database" : option.kind === "output" ? "arrow" : "layers"} /></span><span className="workspace-command-item-copy"><strong>{option.component.name}</strong><small>Add Connect {option.kind}</small></span><Icon name="arrow" />
+        </button> })}
+        {!total && <div className="workspace-command-empty">Nothing matches that search.</div>}
+      </div>
+      <div className="workspace-command-footer"><span><kbd>Up</kbd><kbd>Down</kbd> navigate</span><span><kbd>Enter</kbd> run</span><span><kbd>Esc</kbd> close</span></div>
     </section>
   </div>
 }
@@ -77,7 +110,9 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
   const router = useRouter()
   const [selectedId, setSelectedId] = useState(pipelineId ?? pipelines[0]?.id ?? "")
   const [drafts, setDrafts] = useState<Record<string, PipelineAuthoring>>({})
+  const [historyByPipeline, setHistoryByPipeline] = useState<Record<string, HistoryState>>({})
   const [selectedStep, setSelectedStep] = useState<WorkspaceSelection | null>(null)
+  const [selectedSteps, setSelectedSteps] = useState<WorkspaceSelection[]>([])
   const [draftText, setDraftText] = useState("")
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -86,16 +121,18 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
   const [newName, setNewName] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [inspectorMode, setInspectorMode] = useState<"friendly" | "advanced" | "raw">("friendly")
+  const [inspectorSurface, setInspectorSurface] = useState<"configuration" | "runtime" | "diagnostics">("configuration")
+  const [inspectorSearch, setInspectorSearch] = useState("")
   const [validation, setValidation] = useState<{ valid: boolean; message: string } | null>(null)
   const [libraryQuery, setLibraryQuery] = useState("")
   const [commandOpen, setCommandOpen] = useState(false)
   const [commandQuery, setCommandQuery] = useState("")
   const [commandIndex, setCommandIndex] = useState(0)
+  const commandSelectionRef = useRef<WorkspaceSelection[] | null>(null)
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<{ pipelineId: string; connectReachable: boolean; connectReady: boolean; runtime: PipelineWorkspacePipeline["runtime"] } | null>(null)
   const [componentSchema, setComponentSchema] = useState<ConnectComponentSchema | null>(null)
   const [schemaLoading, setSchemaLoading] = useState(false)
   const [schemaError, setSchemaError] = useState<string | null>(null)
-  const [mappingStudioOpen, setMappingStudioOpen] = useState(false)
   const [mappingInput, setMappingInput] = useState(`{
   "user": {
     "name": "Ada"
@@ -104,6 +141,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
   const [mappingOutput, setMappingOutput] = useState("")
   const [mappingError, setMappingError] = useState<string | null>(null)
   const [mappingRunning, setMappingRunning] = useState(false)
+  const [workspaceContext, setWorkspaceContext] = useState<DeepWorkContext | null>(null)
   const initialPipelineId = pipelineId ?? pipelines[0]?.id ?? ""
   const [libraryOpen, setLibraryOpen] = useState(() => readWorkspacePanelState(initialPipelineId).library)
   const [inspectorOpen, setInspectorOpen] = useState(() => readWorkspacePanelState(initialPipelineId).inspector)
@@ -114,12 +152,15 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
     setLibraryOpen(state.library)
     setInspectorOpen(state.inspector)
     setSelectedStep(null)
+    setSelectedSteps([])
+    setWorkspaceContext(null)
   }, [selectedId, pipelines, initialPipelineId])
   const selected = pipelines.find((pipeline) => pipeline.id === selectedId) ?? pipelines[0]
   const authoring = selected ? drafts[selected.id] ?? selected.authoring : undefined
   const steps = authoring ? stepsFor(authoring) : []
   const selectedStepId = selectedStep ? selectedKey(selectedStep) : null
-  const step = selectedStepId ? steps.find((item) => item.id === selectedStepId) ?? steps[0] : steps[0]
+  const step = selectedStepId ? steps.find((item) => item.id === selectedStepId) : undefined
+  const savedStep = selectedStepId ? stepsFor(selected.authoring).find((item) => item.id === selectedStepId) : undefined
   const activeSelection = selectedStep ?? { kind: "input" as const }
   const stepComponent = step ? Object.keys(step.config).find((key) => key !== "label") : undefined
   const mappingConfigKey = step?.kind === "processor" ? Object.keys(step.config).find((key) => key === "mapping" || key === "bloblang") : undefined
@@ -128,7 +169,6 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
 
   useEffect(() => {
     if (!isMappingProcessor) {
-      setMappingStudioOpen(false)
       setMappingOutput("")
       setMappingError(null)
       return
@@ -153,7 +193,8 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
       .finally(() => { if (!cancelled) setSchemaLoading(false) })
     return () => { cancelled = true }
   }, [step?.kind, stepComponent])
-  const dirty = selected ? Boolean(drafts[selected.id]) : false
+  const dirty = selected ? JSON.stringify(authoring) !== JSON.stringify(selected.authoring) : false
+  const history = selected ? historyByPipeline[selected.id] : undefined
 
   useEffect(() => {
     if (!selected) return
@@ -191,6 +232,36 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
       if (mod && event.key.toLowerCase() === "k") {
         event.preventDefault(); setCommandOpen(true); setCommandQuery(""); setCommandIndex(0); return
       }
+      if (mod && event.key.toLowerCase() === "z") {
+        event.preventDefault()
+        if (event.shiftKey) redo()
+        else undo()
+        return
+      }
+      if (mod && event.key.toLowerCase() === "d" && selectedSteps.length) {
+        event.preventDefault()
+        duplicateSelections(selectedSteps)
+        return
+      }
+      if ((event.key === "Delete" || event.key === "Backspace") && selectedSteps.some((item) => item.kind === "processor" || item.kind === "buffer")) {
+        event.preventDefault()
+        deleteSelections(selectedSteps)
+        return
+      }
+      if (event.key === "Escape") {
+        if (workspaceContext) {
+          setWorkspaceContext(null)
+          setInspectorOpen(true)
+          return
+        }
+        if (commandOpen) {
+          setCommandOpen(false)
+          return
+        }
+        setSelectedStep(null)
+        setSelectedSteps([])
+        return
+      }
       if (mod && event.key === "\\") {
         event.preventDefault()
         const next = !(libraryOpen && inspectorOpen)
@@ -217,7 +288,80 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
 
   if (!selected || !authoring) return <div className="workspace-page pipeline-workspace"><div className="empty-state page-empty"><div className="empty-icon"><Icon name="pipeline" /></div><h3>No pipelines yet</h3><p>Create your first pipeline to start designing a native Connect stream.</p></div></div>
 
-  const updateDraft = (next: PipelineAuthoring) => { setDrafts((current) => ({ ...current, [selected.id]: next })); setValidation(null) }
+  const updateDraft = (next: PipelineAuthoring) => {
+    setDrafts((current) => ({ ...current, [selected.id]: structuredClone(next) }))
+    setHistoryByPipeline((current) => {
+      const existing = current[selected.id] ?? createHistory(authoring)
+      return { ...current, [selected.id]: pushHistory(existing, next) }
+    })
+    setValidation(null)
+    setError(null)
+  }
+
+  const setDraftFromHistory = (next: PipelineAuthoring) => {
+    setDrafts((current) => {
+      const result = { ...current }
+      if (JSON.stringify(next) === JSON.stringify(selected.authoring)) delete result[selected.id]
+      else result[selected.id] = structuredClone(next)
+      return result
+    })
+    setValidation(null)
+    setError(null)
+  }
+
+  const undo = () => {
+    if (!history?.past.length) return
+    const next = undoHistory(history)
+    setHistoryByPipeline((current) => ({ ...current, [selected.id]: next }))
+    setDraftFromHistory(next.present)
+  }
+
+  const redo = () => {
+    if (!history?.future.length) return
+    const next = redoHistory(history)
+    setHistoryByPipeline((current) => ({ ...current, [selected.id]: next }))
+    setDraftFromHistory(next.present)
+  }
+
+  const deleteSelections = (selections: WorkspaceSelection[]) => {
+    let next = authoring
+    const processors = selections
+      .filter((item): item is { kind: "processor"; index: number } => item.kind === "processor")
+      .sort((a, b) => b.index - a.index)
+    for (const item of processors) next = removePipelineProcessor(next, item.index)
+    if (selections.some((item) => item.kind === "buffer")) next = setPipelineAuthoringBuffer(next, undefined)
+    if (JSON.stringify(next) === JSON.stringify(authoring)) return
+    updateDraft(next)
+    const remaining = next.processors?.length
+      ? [{ kind: "processor", index: Math.min(processors.at(-1)?.index ?? 0, next.processors.length - 1) } as WorkspaceSelection]
+      : [{ kind: "input" as const }]
+    setSelectedSteps(remaining)
+    setSelectedStep(remaining[0] ?? null)
+  }
+
+  const duplicateSelections = (selections: WorkspaceSelection[]) => {
+    const indexes = selections
+      .filter((item): item is { kind: "processor"; index: number } => item.kind === "processor")
+      .sort((a, b) => a.index - b.index)
+    if (!indexes.length) return
+    let next = authoring
+    let offset = 0
+    const created: WorkspaceSelection[] = []
+    for (const item of indexes) {
+      const sourceIndex = item.index + offset
+      const source = next.processors?.[sourceIndex]
+      if (!source) continue
+      const copy = structuredClone(source)
+      if (typeof copy.label === "string") copy.label += " copy"
+      const target = sourceIndex + 1
+      next = addPipelineProcessor(next, copy, target)
+      created.push({ kind: "processor", index: target })
+      offset += 1
+    }
+    updateDraft(next)
+    setSelectedSteps(created)
+    setSelectedStep(created[0] ?? null)
+  }
   const updateSelectedConfig = (config: JsonObject) => {
     if (!step) return
     const component: PipelineAuthoringComponent = step.kind === "processor" ? { kind: "processor", index: activeSelection.kind === "processor" ? activeSelection.index : 0 } : { kind: step.kind }
@@ -231,9 +375,9 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
       const config = await createConnectComponentConfig({ data: { kind: option.kind, name: option.component.name } })
       if (option.kind === "processor") {
         const index = activeSelection.kind === "processor" ? activeSelection.index + 1 : authoring.processors?.length ?? 0
-        updateDraft(addPipelineProcessor(authoring, config, index)); setSelectedStep({ kind: "processor", index })
+        updateDraft(addPipelineProcessor(authoring, config, index)); setSelectedStep({ kind: "processor", index }); setSelectedSteps([{ kind: "processor", index }])
       } else {
-        updateDraft(updatePipelineAuthoring(authoring, { kind: option.kind }, config)); setSelectedStep({ kind: option.kind })
+        updateDraft(updatePipelineAuthoring(authoring, { kind: option.kind }, config)); setSelectedStep({ kind: option.kind }); setSelectedSteps([{ kind: option.kind }])
       }
       setInspectorMode("friendly"); setEditing(false)
     } catch (value) { setError(value instanceof Error ? value.message : "Redpanda Connect component generation failed") }
@@ -282,28 +426,28 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
     try { const value = parse(draftText) as unknown; if (!isObject(value)) throw new Error("Raw configuration must be a YAML/JSON object"); updateDraft(replacePipelineAuthoringConfig(authoring, value)); setError(null) }
     catch (value) { setError(value instanceof Error ? value.message : "Invalid YAML/JSON") }
   }
-  const addProcessor = () => { const index = authoring.processors?.length ?? 0; updateDraft(addPipelineProcessor(authoring, { processor: {} })); setSelectedStep({ kind: "processor", index }) }
-  const toggleBuffer = () => { updateDraft(setPipelineAuthoringBuffer(authoring, authoring.buffer ? undefined : { memory: {} })); setSelectedStep({ kind: authoring.buffer ? "input" : "buffer" }) }
+  const addProcessor = () => { const index = authoring.processors?.length ?? 0; updateDraft(addPipelineProcessor(authoring, { processor: {} })); setSelectedStep({ kind: "processor", index }); setSelectedSteps([{ kind: "processor", index }]) }
+  const toggleBuffer = () => { const next = setPipelineAuthoringBuffer(authoring, authoring.buffer ? undefined : { memory: {} }); updateDraft(next); const selection = authoring.buffer ? { kind: "input" as const } : { kind: "buffer" as const }; setSelectedStep(selection); setSelectedSteps([selection]) }
   const removeProcessor = () => {
     if (activeSelection.kind !== "processor") return
     const count = authoring.processors?.length ?? 0
     const next = removePipelineProcessor(authoring, activeSelection.index)
     updateDraft(next); const nextIndex = Math.min(activeSelection.index, Math.max(0, count - 2))
-    setSelectedStep(next.processors?.length ? { kind: "processor", index: nextIndex } : { kind: "input" })
+    setSelectedStep(next.processors?.length ? { kind: "processor", index: nextIndex } : { kind: "input" }); setSelectedSteps(next.processors?.length ? [{ kind: "processor", index: nextIndex }] : [{ kind: "input" }])
   }
   const moveProcessor = (direction: -1 | 1) => {
     if (activeSelection.kind !== "processor") return
     const target = activeSelection.index + direction; const count = authoring.processors?.length ?? 0
     if (target < 0 || target >= count) return
-    updateDraft(movePipelineProcessor(authoring, activeSelection.index, target)); setSelectedStep({ kind: "processor", index: target })
+    updateDraft(movePipelineProcessor(authoring, activeSelection.index, target)); setSelectedStep({ kind: "processor", index: target }); setSelectedSteps([{ kind: "processor", index: target }])
   }
 
-  const discard = () => { setDrafts((current) => { const next = { ...current }; delete next[selected.id]; return next }); setValidation(null); setError(null); setEditing(false) }
+  const discard = () => { setDrafts((current) => { const next = { ...current }; delete next[selected.id]; return next }); setHistoryByPipeline((current) => { const next = { ...current }; delete next[selected.id]; return next }); setValidation(null); setError(null); setEditing(false) }
   const publish = async () => {
     if (!dirty || !validation?.valid) return
     if (validation.message.includes("restart this stream") && !window.confirm("Publishing this change will restart the running Connect stream. Continue?")) return
     setSaving(true); setError(null)
-    try { await publishAuthoredPipelineServer({ data: { id: selected.id, authoring } }); setDrafts((current) => { const next = { ...current }; delete next[selected.id]; return next }); await router.invalidate({ sync: true }) }
+    try { await publishAuthoredPipelineServer({ data: { id: selected.id, authoring } }); setDrafts((current) => { const next = { ...current }; delete next[selected.id]; return next }); setHistoryByPipeline((current) => { const next = { ...current }; delete next[selected.id]; return next }); await router.invalidate({ sync: true }) }
     catch (value) { const message = value instanceof Error ? value.message : "Publish failed"; setError(message); setValidation({ valid: false, message }) }
     finally { setSaving(false) }
   }
@@ -329,6 +473,50 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
     try { await deletePipeline({ data: { id: selected.id } }); await router.invalidate({ sync: true }); const next = pipelines.find((pipeline) => pipeline.id !== selected.id); if (next) await router.navigate({ to: "/pipelines/$pipelineId", params: { pipelineId: next.id } }); else await router.navigate({ to: "/pipelines" }) }
     catch (value) { setError(value instanceof Error ? value.message : "Delete failed") }
   }
+
+  const openDeepWork = (context: DeepWorkContext) => {
+    setWorkspaceContext(context)
+    setInspectorOpen(false)
+  }
+
+  const commandContext = {
+    selectionCount: selectedSteps.length,
+    hasSelection: selectedSteps.length > 0,
+    canDelete: selectedSteps.some((item) => item.kind === "processor" || item.kind === "buffer"),
+    canDuplicate: selectedSteps.some((item) => item.kind === "processor"),
+    canUndo: Boolean(history?.past.length),
+    canRedo: Boolean(history?.future.length),
+    dirty,
+  }
+
+  const commands: WorkspaceCommand[] = [
+    { id: "undo", title: "Undo", description: "Revert the last authoring change", shortcut: "Cmd Z", group: "Edit", enabled: (context) => context.canUndo, run: undo },
+    { id: "redo", title: "Redo", description: "Reapply the last undone change", shortcut: "Cmd Shift Z", group: "Edit", enabled: (context) => context.canRedo, run: redo },
+    { id: "duplicate", title: "Duplicate selection", description: "Duplicate selected processor nodes", shortcut: "Cmd D", group: "Edit", enabled: (context) => context.canDuplicate, run: () => duplicateSelections(commandSelectionRef.current ?? selectedSteps) },
+    { id: "delete", title: "Delete selection", description: "Remove selected processors or buffer", shortcut: "Delete", group: "Edit", enabled: (context) => context.canDelete, run: () => deleteSelections(commandSelectionRef.current ?? selectedSteps) },
+    { id: "add-processor", title: "Add processor", description: "Insert a native Connect processor", group: "Canvas", enabled: () => Boolean(authoring), run: addProcessor },
+    { id: "toggle-buffer", title: authoring.buffer ? "Remove buffer" : "Add buffer", description: "Toggle the native stream buffer", group: "Canvas", enabled: () => Boolean(authoring), run: toggleBuffer },
+    { id: "mapping", title: "Open Mapping Studio", description: "Execute mappings through native Connect", group: "Deep work", enabled: () => isMappingProcessor, run: () => openDeepWork("mapping") },
+    { id: "validation", title: "Open validation", description: "Run authoritative Connect validation", shortcut: "Cmd Shift V", group: "Deep work", enabled: (context) => context.dirty, run: () => openDeepWork("validation") },
+    { id: "test", title: "Run native test", description: "Open the Connect unit-test surface", group: "Deep work", enabled: () => Boolean(authoring), run: () => openDeepWork("test") },
+    { id: "diff", title: "Review diff", description: "Compare the draft with the published revision", group: "Deep work", enabled: (context) => context.dirty, run: () => openDeepWork("diff") },
+    { id: "runtime", title: "Open runtime", description: "Inspect live stream stats", group: "Deep work", enabled: () => Boolean(selected), run: () => openDeepWork("runtime") },
+    { id: "toggle-library", title: libraryOpen ? "Hide component library" : "Show component library", shortcut: "[", group: "Workspace", enabled: () => true, run: () => setLibraryVisibility(!libraryOpen) },
+    { id: "toggle-inspector", title: inspectorOpen ? "Hide inspector" : "Show inspector", shortcut: "]", group: "Workspace", enabled: () => true, run: () => setInspectorVisibility(!inspectorOpen) },
+    { id: "delete-pipeline", title: "Delete pipeline", description: "Remove the pipeline and its Connect stream", group: "Pipeline", enabled: () => Boolean(selected), run: () => void remove() },
+  ]
+
+  const runCommand = (id: string, selectionOverride?: WorkspaceSelection[]) => {
+    const command = commands.find((item) => item.id === id)
+    if (!command) return
+    const context = selectionOverride ? { ...commandContext, selectionCount: selectionOverride.length, hasSelection: selectionOverride.length > 0, canDelete: selectionOverride.some((item) => item.kind === "processor" || item.kind === "buffer"), canDuplicate: selectionOverride.some((item) => item.kind === "processor") } : commandContext
+    if (!command.enabled(context)) return
+    commandSelectionRef.current = selectionOverride ?? null
+    setCommandOpen(false)
+    void Promise.resolve(command.run()).finally(() => { commandSelectionRef.current = null })
+  }
+
+
 
   return <div className="pipeline-workspace-v2">
     <header className="workspace-topbar">
@@ -367,24 +555,34 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
       {libraryOpen && <ComponentLibrary components={components} query={libraryQuery} onQueryChange={setLibraryQuery} onOpenCommand={openCommand} onChoose={(component, kind) => void insertComponent({ component, kind })} />}
       <main className="workspace-canvas-column">
         <div className="workspace-canvas-toolbar">
-          <div><span className="eyebrow">Workspace</span><strong>{mappingStudioOpen ? "Mapping Studio" : "Stream topology"}</strong></div>
-          {!mappingStudioOpen && <div className="workspace-canvas-toolbar-actions">
-            <button type="button" className="workspace-toolbar-button" onClick={toggleBuffer}>{authoring.buffer ? "Remove buffer" : "Add buffer"}</button>
-            <button type="button" className="workspace-toolbar-button" onClick={addProcessor}><Icon name="plus" />Processor</button>
+          <div><span className="eyebrow">{workspaceContext ? "Deep work" : "Workspace"}</span><strong>{workspaceContext ? workspaceContext[0].toUpperCase() + workspaceContext.slice(1) : "Stream topology"}</strong></div>
+          {!workspaceContext && <div className="workspace-canvas-toolbar-actions">
+            <button type="button" className="workspace-toolbar-button" onClick={() => runCommand("toggle-buffer")}>{authoring.buffer ? "Remove buffer" : "Add buffer"}</button>
+            <button type="button" className="workspace-toolbar-button" onClick={() => runCommand("add-processor")}><Icon name="plus" />Processor</button>
+            {selectedSteps.length > 0 && <button type="button" className="workspace-toolbar-button" onClick={() => runCommand("duplicate")}>Duplicate</button>}
           </div>}
         </div>
         <div className="workspace-canvas-stage">
-          {mappingStudioOpen && isMappingProcessor && step && mappingConfigKey ? <MappingStudio
-            componentName={stepComponent ?? "mapping"}
-            mapping={mappingText}
-            input={mappingInput}
-            output={mappingOutput}
-            error={mappingError}
-            running={mappingRunning}
-            onMappingChange={(value) => updateSelectedConfig({ ...step.config, [mappingConfigKey]: value })}
-            onInputChange={(value) => { setMappingInput(value); setMappingError(null) }}
-            onRun={() => void runMapping()}
-            onClose={() => setMappingStudioOpen(false)}
+          {workspaceContext ? <DeepWorkSurface
+            context={workspaceContext}
+            authoring={authoring}
+            pipelineId={selected.id}
+            mapping={isMappingProcessor && step && mappingConfigKey ? {
+              componentName: stepComponent ?? "mapping",
+              mapping: mappingText,
+              input: mappingInput,
+              output: mappingOutput,
+              error: mappingError,
+              running: mappingRunning,
+              onMappingChange: (value) => updateSelectedConfig({ ...step.config, [mappingConfigKey]: value }),
+              onInputChange: (value) => { setMappingInput(value); setMappingError(null) },
+              onRun: () => void runMapping(),
+            } : undefined}
+            validation={validation}
+            runtime={runtime}
+            connectReady={liveConnectReady}
+            onValidate={() => void validateWithConnect()}
+            onClose={() => { setWorkspaceContext(null); setInspectorOpen(true) }}
           /> : <>
             <PipelineCanvas
               key={selected.id}
@@ -394,17 +592,24 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
               selected={selectedStep}
               onSelect={(selection) => {
                 setSelectedStep(selection)
+                setSelectedSteps(selection ? [selection] : [])
                 setInspectorOpen(Boolean(selection))
                 setInspectorMode("friendly")
+                setInspectorSurface("configuration")
                 setValidation(null)
                 setError(null)
-                const next = selection ? steps.find((item) => item.id === selectedKey(selection)) : undefined
-                const nextMapping = next?.kind === "processor" && Object.keys(next.config).some((key) => key === "mapping" || key === "bloblang")
-                setMappingStudioOpen(Boolean(nextMapping))
+              }}
+              onSelectMany={(selections) => {
+                setSelectedSteps(selections)
+                setSelectedStep(selections[0] ?? null)
+                if (selections.length) setInspectorOpen(true)
               }}
               onAuthoringChange={(next) => updateDraft(next)}
+              onDuplicate={(selections) => runCommand("duplicate", selections)}
+              onDelete={(selections) => runCommand("delete", selections)}
+              onOpenCommand={openCommand}
             />
-            <div className="workspace-canvas-hint"><span><kbd>?K</kbd> add component</span><span>Drag to arrange</span><span>Scroll to zoom</span></div>
+            <div className="workspace-canvas-hint"><span><kbd>Cmd K</kbd> commands</span><span>Shift drag to select</span><span>Cmd D duplicate</span><span>Scroll to zoom</span></div>
           </>}
         </div>
         <div className="workspace-canvas-footer">
@@ -423,32 +628,61 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
 
       {inspectorOpen && <aside className="workspace-inspector" aria-label="Inspector">
         <div className="workspace-inspector-header">
-          <div><span className="eyebrow">{step?.kind ?? "pipeline"}</span><h2>{step?.label ?? "Pipeline"}</h2>{step && <code>{Object.keys(step.config)[0] ?? "configuration"}</code>}</div>
-          {step?.kind === "processor" && <IconButton label="Processor options"><Icon name="more" /></IconButton>}
+          <div><span className="eyebrow">{selectedSteps.length > 1 ? "selection" : step?.kind ?? "pipeline"}</span><h2>{selectedSteps.length > 1 ? selectedSteps.length + " selected" : step?.label ?? "Pipeline"}</h2>{step && <code>{stepComponent ?? "configuration"}</code>}</div>
+          <IconButton label="Inspector menu" onClick={openCommand}><Icon name="more" /></IconButton>
         </div>
-        {step && <>
-          {step.kind !== "buffer" && <div className="workspace-inspector-component"><div><span>Connect component</span><strong>{Object.keys(step.config).find((key) => key !== "label") ?? "Not configured"}</strong></div><button type="button" onClick={openCommand}>Change</button></div>}
+        <div className="inspector-mode-tabs" role="tablist" aria-label="Inspector mode">
+          {(["configuration", "runtime", "diagnostics"] as const).map((mode) => <button key={mode} type="button" role="tab" aria-selected={inspectorSurface === mode} className={inspectorSurface === mode ? "active" : ""} onClick={() => setInspectorSurface(mode)}>{mode === "configuration" ? "Configure" : mode[0].toUpperCase() + mode.slice(1)}</button>)}
+        </div>
+
+        {selectedSteps.length > 1 ? <div className="workspace-inspector-multiselect">
+          <div className="multi-select-summary"><strong>{selectedSteps.length} nodes selected</strong><span>Structural actions apply to the whole selection. Configuration remains per node.</span></div>
+          <button className="button button-secondary" type="button" onClick={() => duplicateSelections(selectedSteps)}>Duplicate</button>
+          <button className="button button-danger-ghost" type="button" onClick={() => deleteSelections(selectedSteps)}>Delete</button>
+        </div> : inspectorSurface === "runtime" ? <div className="workspace-inspector-body">
+          <div className="inspector-runtime-hero"><span className={"status-dot " + (runtime.connected ? "online" : "offline")} /><strong>{statusLabel}</strong><span>{runtime.connected ? runtime.uptime : "Unavailable"}</span></div>
+          <dl className="detail-list"><div><dt>Connect stream</dt><dd className="mono">{selected.connectStreamId ?? "N/A"}</dd></div><div><dt>Ready</dt><dd>{liveConnectReady ? "Yes" : "No"}</dd></div><div><dt>Received</dt><dd>{runtimeSummary.received ?? "N/A"}</dd></div><div><dt>Sent</dt><dd>{runtimeSummary.sent ?? "N/A"}</dd></div><div><dt>Errors</dt><dd>{runtimeSummary.errors ?? "N/A"}</dd></div></dl>
+          <button className="button button-secondary" type="button" onClick={() => openDeepWork("runtime")}>Open runtime surface</button>
+        </div> : inspectorSurface === "diagnostics" ? <div className="workspace-inspector-body">
+          <div className={"validation-card " + (validation ? validation.valid ? "valid" : "invalid" : "")} role="status"><Icon name={validation?.valid ? "check" : "warning"} /><div><strong>{validation ? (validation.valid ? "Connect accepted the draft" : "Connect rejected the draft") : "No diagnostics yet"}</strong><p>{validation?.message ?? "Run native validation to receive authoritative Connect diagnostics."}</p></div></div>
+          <button className="button button-primary" type="button" onClick={() => openDeepWork("validation")}>Open validation</button>
+          <button className="button button-secondary" type="button" onClick={() => openDeepWork("test")}>Run native test</button>
+          <button className="button button-secondary" type="button" onClick={() => openDeepWork("diff")} disabled={!dirty}>Review diff</button>
+        </div> : step ? <>
+          {step.kind !== "buffer" && <div className="workspace-inspector-component"><div><span>Connect component</span><strong>{stepComponent ?? "Not configured"}</strong></div><button type="button" onClick={openCommand}>Change</button></div>}
+          <div className="workspace-inspector-search"><Icon name="search" /><input aria-label="Search configuration fields" placeholder="Search fields..." value={inspectorSearch} onChange={(event) => setInspectorSearch(event.target.value)} /></div>
           <div className="workspace-inspector-tabs" role="tablist" aria-label="Configuration view">
-            {(["friendly", "advanced", "raw"] as const).map((mode) => <button key={mode} className={inspectorMode === mode ? "active" : ""} type="button" role="tab" aria-selected={inspectorMode === mode} onClick={() => { setInspectorMode(mode); setEditing(false); if (mode === "raw") setDraftText(stringify(authoringToConnectConfig(authoring), { lineWidth: 120 })) }}>{mode === "friendly" ? "Configure" : mode === "advanced" ? "Advanced" : "Source"}</button>)}
+            {(["friendly", "advanced", "raw"] as const).map((mode) => <button key={mode} className={inspectorMode === mode ? "active" : ""} type="button" role="tab" aria-selected={inspectorMode === mode} onClick={() => { setInspectorMode(mode); setEditing(false); if (mode === "raw") setDraftText(stringify(authoringToConnectConfig(authoring), { lineWidth: 120 })) }}>{mode === "friendly" ? "Fields" : mode === "advanced" ? "Advanced" : "Source"}</button>)}
           </div>
           <div className="workspace-inspector-body">
-            {inspectorMode === "friendly" && <section className="workspace-inspector-section"><div className="section-intro"><strong>Configuration</strong><span>Native Connect schema</span></div>{schemaLoading && <div className="inspector-empty">Loading the native Connect schema…</div>}{schemaError && <div className="error-banner" role="alert">{schemaError}</div>}{!schemaLoading && !schemaError && componentSchema && <NativeInspector config={step.config} schema={componentSchema} onChange={updateSelectedConfig} />}</section>}
-            {inspectorMode === "advanced" && <section className="workspace-inspector-section"><div className="section-intro"><strong>Advanced configuration</strong><span>JSON for this component</span></div><textarea className="config-editor" aria-label="Step configuration" value={editing ? draftText : JSON.stringify(step.config, null, 2)} onChange={(event) => { setDraftText(event.target.value); setEditing(true) }} spellCheck={false} /></section>}
-            {inspectorMode === "raw" && <section className="workspace-inspector-section"><div className="section-intro"><strong>Native Connect source</strong><span>YAML ? full stream</span></div><textarea className="config-editor config-editor-tall" aria-label="Raw Connect YAML configuration" value={draftText || stringify(authoringToConnectConfig(authoring), { lineWidth: 120 })} onChange={(event) => setDraftText(event.target.value)} spellCheck={false} /></section>}
-            {validation && <div className={`validation-card ${validation.valid ? "valid" : "invalid"}`} role="status"><Icon name={validation.valid ? "check" : "warning"} /><div><strong>{validation.valid ? "Connect accepted the draft" : "Connect rejected the draft"}</strong><p>{validation.message}</p></div></div>}
+            {inspectorMode === "friendly" && <section className="workspace-inspector-section">
+              <div className="section-intro"><strong>Native schema</strong><span>Live from Redpanda Connect</span></div>
+              {schemaLoading && <div className="inspector-empty">Loading native Connect schema...</div>}
+              {schemaError && <div className="error-banner" role="alert">{schemaError}</div>}
+              {!schemaLoading && !schemaError && componentSchema && <NativeInspector config={step.config} initialConfig={savedStep?.config} schema={componentSchema} search={inspectorSearch} onChange={updateSelectedConfig} />}
+            </section>}
+            {inspectorMode === "advanced" && <section className="workspace-inspector-section">
+              <div className="section-intro"><strong>Advanced configuration</strong><span>Native component JSON</span></div>
+              <textarea className="config-editor" aria-label="Step configuration" value={editing ? draftText : JSON.stringify(step.config, null, 2)} onChange={(event) => { setDraftText(event.target.value); setEditing(true) }} spellCheck={false} />
+            </section>}
+            {inspectorMode === "raw" && <section className="workspace-inspector-section">
+              <div className="section-intro"><strong>Native Connect source</strong><span>YAML - full stream</span></div>
+              <textarea className="config-editor config-editor-tall" aria-label="Raw Connect YAML configuration" value={draftText || stringify(authoringToConnectConfig(authoring), { lineWidth: 120 })} onChange={(event) => setDraftText(event.target.value)} spellCheck={false} />
+            </section>}
+            {validation && <div className={"validation-card " + (validation.valid ? "valid" : "invalid")} role="status"><Icon name={validation.valid ? "check" : "warning"} /><div><strong>{validation.valid ? "Connect accepted the draft" : "Connect rejected the draft"}</strong><p>{validation.message}</p></div></div>}
             <div className="workspace-inspector-actions">
-              {step.kind === "processor" && <><button className="button button-secondary" type="button" onClick={() => moveProcessor(-1)} disabled={activeSelection.kind !== "processor" || activeSelection.index === 0}>Move up</button><button className="button button-secondary" type="button" onClick={() => moveProcessor(1)} disabled={activeSelection.kind !== "processor" || activeSelection.index === (authoring.processors?.length ?? 1) - 1}>Move down</button><button className="button button-danger-ghost" type="button" onClick={removeProcessor}>Delete processor</button></>}
+              {step.kind === "processor" && <><button className="button button-secondary" type="button" onClick={() => moveProcessor(-1)} disabled={activeSelection.kind !== "processor" || activeSelection.index === 0}>Move up</button><button className="button button-secondary" type="button" onClick={() => moveProcessor(1)} disabled={activeSelection.kind !== "processor" || activeSelection.index === processorCount - 1}>Move down</button><button className="button button-danger-ghost" type="button" onClick={() => deleteSelections([{ kind: "processor", index: activeSelection.kind === "processor" ? activeSelection.index : 0 }])}>Delete</button></>}
               {step.kind === "buffer" && <button className="button button-secondary" type="button" onClick={toggleBuffer}>Remove buffer</button>}
-              {isMappingProcessor && <button className="button button-primary" type="button" onClick={() => { setMappingError(null); setMappingStudioOpen(true) }}><Icon name="arrow" />Open Mapping Studio</button>}
+              {isMappingProcessor && <button className="button button-primary" type="button" onClick={() => { setMappingError(null); openDeepWork("mapping") }}><Icon name="arrow" />Open Mapping Studio</button>}
               {inspectorMode === "friendly" && <button className="button button-secondary" type="button" onClick={() => { beginEdit(); setInspectorMode("advanced") }}>Edit as JSON</button>}
               {inspectorMode === "advanced" && <><button className="button button-primary" type="button" onClick={applyEdit}>Apply change</button><button className="button button-ghost" type="button" onClick={() => setEditing(false)}>Cancel</button></>}
               {inspectorMode === "raw" && <button className="button button-primary" type="button" onClick={applyRaw}>Apply source</button>}
-              <button className="button button-secondary" type="button" onClick={() => void validateWithConnect()} disabled={!dirty}>Validate with Connect</button>
+              <button className="button button-secondary" type="button" onClick={() => openDeepWork("validation")} disabled={!dirty}>Validate draft</button>
               <button className="text-button" type="button" onClick={() => void normalizeWithConnect()}>Normalize with Connect <Icon name="arrow" /></button>
             </div>
-            <div className="workspace-inspector-runtime"><div className="section-intro"><strong>Runtime</strong><span>Live from Connect ? 2s</span></div><dl className="detail-list"><div><dt>Connection</dt><dd>{runtime.connected ? "Connected" : "Unavailable"}</dd></div><div><dt>Stream</dt><dd className="mono">{selected.connectStreamId ?? "?"}</dd></div><div><dt>Status</dt><dd>{statusLabel}</dd></div><div><dt>Uptime</dt><dd>{runtime.connected ? runtime.uptime : "?"}</dd></div></dl></div>
+            {dirty && <div className="inspector-dirty-state"><span className="status-dot" />Draft differs from published configuration <button className="text-button" type="button" onClick={discard}>Revert draft</button></div>}
           </div>
-        </>}
+        </> : <div className="workspace-inspector-body"><div className="workspace-inspector-empty"><Icon name="pipeline" /><strong>Select a node</strong><span>Choose a node on the canvas to configure it.</span></div><div className="workspace-inspector-runtime"><div className="section-intro"><strong>Runtime</strong><span>Live from Connect</span></div><dl className="detail-list"><div><dt>Stream</dt><dd className="mono">{selected.connectStreamId ?? "N/A"}</dd></div><div><dt>Status</dt><dd>{statusLabel}</dd></div><div><dt>Uptime</dt><dd>{runtime.connected ? runtime.uptime : "N/A"}</dd></div></dl></div></div>}
       </aside>}
       {!libraryOpen && <button className="workspace-edge-toggle workspace-edge-toggle-left" type="button" onClick={() => setLibraryVisibility(true)} aria-label="Show component library" title="Show component library [">
         <Icon name="panelLeft" />
@@ -458,7 +692,19 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
       </button>}
     </div>
 
-    <CommandPalette open={commandOpen} query={commandQuery} options={commandOptions} activeIndex={commandIndex} onQueryChange={(query) => { setCommandQuery(query); setCommandIndex(0) }} onActiveIndexChange={setCommandIndex} onChoose={(option) => void insertComponent(option)} onClose={() => setCommandOpen(false)} />
+    <CommandPalette
+      open={commandOpen}
+      query={commandQuery}
+      commands={commands}
+      options={commandOptions}
+      context={commandContext}
+      activeIndex={commandIndex}
+      onQueryChange={(query) => { setCommandQuery(query); setCommandIndex(0) }}
+      onActiveIndexChange={setCommandIndex}
+      onChooseCommand={(command) => runCommand(command.id)}
+      onChooseComponent={(option) => void insertComponent(option)}
+      onClose={() => setCommandOpen(false)}
+    />
 
     {showCreate && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowCreate(false) }}><form className="modal" onSubmit={(event) => { event.preventDefault(); void create() }}>
       <div className="modal-header"><div><span className="eyebrow">Pipeline</span><h2>New pipeline</h2></div><button className="icon-button" type="button" onClick={() => setShowCreate(false)} aria-label="Close">?</button></div>
