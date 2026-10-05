@@ -11,6 +11,7 @@ import {
   type Edge,
   type Node,
   type NodeProps,
+  type Viewport,
   SelectionMode,
   BackgroundVariant,
 } from "@xyflow/react"
@@ -41,10 +42,11 @@ type PipelineNode = Node<PipelineNodeData, "pipelineNode">
 type PipelineEdge = Edge
 
 type PipelineCanvasProps = {
+  pipelineId?: string
   authoring: PipelineAuthoring
   runtime: PipelineRuntime
   selected: WorkspaceSelection | null
-  onSelect: (selection: WorkspaceSelection) => void
+  onSelect: (selection: WorkspaceSelection | null) => void
   onAuthoringChange: (authoring: PipelineAuthoring) => void
 }
 
@@ -90,6 +92,35 @@ const PipelineNodeView = memo(function PipelineNodeView({ data, selected }: Node
 })
 
 const nodeTypes = { pipelineNode: PipelineNodeView }
+
+function loadPositions(key: string): Map<string, { x: number; y: number }> {
+  try {
+    const raw = window.localStorage.getItem(key + ".positions")
+    if (!raw) return new Map()
+    const parsed = JSON.parse(raw) as Record<string, { x?: number; y?: number }>
+    return new Map(Object.entries(parsed).flatMap(([id, position]) => (
+      typeof position?.x === "number" && typeof position?.y === "number" ? [[id, { x: position.x, y: position.y }] as const] : []
+    )))
+  } catch { return new Map() }
+}
+function persistPositions(key: string, positions: Map<string, { x: number; y: number }>) {
+  try { window.localStorage.setItem(key + ".positions", JSON.stringify(Object.fromEntries(positions))) } catch {}
+}
+function loadViewport(key: string): Viewport {
+  try {
+    const raw = window.localStorage.getItem(key + ".viewport")
+    if (!raw) return { x: 0, y: 0, zoom: 1 }
+    const parsed = JSON.parse(raw) as Partial<Viewport>
+    if (typeof parsed.x === "number" && typeof parsed.y === "number" && typeof parsed.zoom === "number") return parsed as Viewport
+  } catch {}
+  return { x: 0, y: 0, zoom: 1 }
+}
+function hasStoredViewport(key: string): boolean {
+  try { return window.localStorage.getItem(key + ".viewport") !== null } catch { return false }
+}
+function persistViewport(key: string, viewport: Viewport) {
+  try { window.localStorage.setItem(key + ".viewport", JSON.stringify(viewport)) } catch {}
+}
 
 function buildNodes(authoring: PipelineAuthoring, runtime: PipelineRuntime, positions: Map<string, { x: number; y: number }>): PipelineNode[] {
   const projection = projectPipelineAuthoring(authoring)
@@ -150,8 +181,10 @@ function selectionFromNode(node: PipelineNode): WorkspaceSelection {
   return node.data.selection
 }
 
-export function PipelineCanvas({ authoring, runtime, selected, onSelect, onAuthoringChange }: PipelineCanvasProps) {
-  const positions = useRef(new Map<string, { x: number; y: number }>())
+export function PipelineCanvas({ pipelineId = "unknown", authoring, runtime, selected, onSelect, onAuthoringChange }: PipelineCanvasProps) {
+  const workspaceKey = "porcelain.pipeline.workspace." + pipelineId
+  const positions = useRef(loadPositions(workspaceKey))
+  const initialViewport = useMemo(() => loadViewport(workspaceKey), [workspaceKey])
   const initialNodes = useMemo(() => buildNodes(authoring, runtime, positions.current), [authoring, runtime])
   const initialEdges = useMemo(() => buildEdges(authoring), [authoring])
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
@@ -178,7 +211,10 @@ export function PipelineCanvas({ authoring, runtime, selected, onSelect, onAutho
 
   const handleNodesChange = (changes: Parameters<typeof onNodesChange>[0]) => {
     for (const change of changes) {
-      if (change.type === "position" && change.position) positions.current.set(change.id, change.position)
+      if (change.type === "position" && change.position) {
+        positions.current.set(change.id, change.position)
+        persistPositions(workspaceKey, positions.current)
+      }
     }
     onNodesChange(changes)
   }
@@ -248,10 +284,13 @@ export function PipelineCanvas({ authoring, runtime, selected, onSelect, onAutho
         onConnect={handleConnect}
         isValidConnection={isValidConnection}
         onNodeClick={(_, node) => onSelect(node.data.selection)}
+        onPaneClick={() => onSelect(null)}
+        onMoveEnd={(_, viewport) => persistViewport(workspaceKey, viewport)}
         nodesConnectable
         edgesReconnectable={false}
         edgesFocusable={false}
-        fitView
+        defaultViewport={initialViewport}
+        fitView={!hasStoredViewport(workspaceKey)}
         fitViewOptions={{ padding: 0.24, minZoom: 0.65, maxZoom: 1.1 }}
         minZoom={0.35}
         maxZoom={1.6}

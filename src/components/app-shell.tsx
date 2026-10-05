@@ -13,6 +13,7 @@ import {
   MoreHorizontalIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
+  PanelRightCloseIcon,
   PlusSignIcon,
   Search01Icon,
   Settings01Icon,
@@ -20,7 +21,7 @@ import {
 } from "@hugeicons/core-free-icons"
 
 export type IconName =
-  | "grid" | "pipeline" | "activity" | "settings" | "search" | "database" | "layers" | "more" | "panelLeft" | "pulse" | "plus" | "check" | "terminal" | "warning" | "arrow"
+  | "grid" | "pipeline" | "activity" | "settings" | "search" | "database" | "layers" | "more" | "panelLeft" | "panelRight" | "pulse" | "plus" | "check" | "terminal" | "warning" | "arrow"
 
 export function Icon({ name }: { name: IconName }) {
   const icons = {
@@ -34,6 +35,7 @@ export function Icon({ name }: { name: IconName }) {
     layers: Layers01Icon,
     more: MoreHorizontalIcon,
     panelLeft: PanelLeftCloseIcon,
+    panelRight: PanelRightCloseIcon,
     plus: PlusSignIcon,
     check: CheckmarkCircle03Icon,
     terminal: ComputerTerminal02Icon,
