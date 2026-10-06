@@ -12,7 +12,6 @@ import {
   Layers01Icon,
   MoreHorizontalIcon,
   PanelLeftCloseIcon,
-  PanelLeftOpenIcon,
   PanelRightCloseIcon,
   PlusSignIcon,
   Search01Icon,
@@ -85,7 +84,7 @@ export function AppShell({ children }: Readonly<{ children?: ReactNode }>) {
       <aside className="app-sidebar">
         <div className="sidebar-topbar">
           <div className="workspace-identity">
-            <span className="brand-mark">P</span>
+            <img className="brand-logo" src="/porcelain.svg" alt="Porcelain" />
             <span className="workspace-copy">
               <strong>Porcelain</strong>
               <small>Connect workspace</small>
@@ -99,7 +98,7 @@ export function AppShell({ children }: Readonly<{ children?: ReactNode }>) {
             onClick={toggleCollapsed}
           >
             {collapsed ? (
-              <span className="sidebar-collapse-mark" aria-hidden="true">P</span>
+              <img className="brand-logo" src="/porcelain.svg" alt="" aria-hidden="true" />
             ) : (
               <HugeiconsIcon
                 icon={PanelLeftCloseIcon}
