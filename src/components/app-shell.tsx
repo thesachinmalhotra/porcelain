@@ -85,10 +85,7 @@ export function AppShell({ children }: Readonly<{ children?: ReactNode }>) {
         <div className="sidebar-topbar">
           <div className="workspace-identity">
             <img className="brand-logo" src="/porcelain.svg" alt="Porcelain" />
-            <span className="workspace-copy">
-              <strong>Porcelain</strong>
-              <small>Connect workspace</small>
-            </span>
+            <img className="brand-wordmark" src="/porcelain-wordmark.svg" alt="Porcelain" />
           </div>
           <button
             className="sidebar-collapse"

@@ -1533,3 +1533,11 @@ body { color: var(--p-text); }
   .workspace-page { padding-inline: 24px; }
   .content-grid { margin-top: 16px; }
 }
+
+
+/* Porcelain lockup: the supplied wordmark sits beside the existing mark. */
+.workspace-identity { gap: 9px; }
+.workspace-identity .brand-logo { width: 24px; height: 24px; }
+.brand-wordmark { display: block; width: 91px; height: 24px; flex: none; object-fit: contain; object-position: left center; }
+.sidebar-collapsed .workspace-identity { justify-content: center; }
+.sidebar-collapsed .workspace-identity .brand-wordmark { display: none; }
