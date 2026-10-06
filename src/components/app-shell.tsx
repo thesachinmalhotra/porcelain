@@ -1,48 +1,51 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { Link } from "@tanstack/react-router"
-import { HugeiconsIcon } from "@hugeicons/react"
-import {
-  Activity01Icon,
-  Alert02Icon,
-  ArrowRight01Icon,
-  CheckmarkCircle03Icon,
-  ComputerTerminal02Icon,
-  Database01Icon,
-  GridIcon,
-  Layers01Icon,
-  MoreHorizontalIcon,
-  PanelLeftCloseIcon,
-  PanelRightCloseIcon,
-  PlusSignIcon,
-  Search01Icon,
-  Settings01Icon,
-  WorkflowIcon,
-} from "@hugeicons/core-free-icons"
+import { PulseIcon } from "@phosphor-icons/react/dist/csr/Pulse"
+import { ArrowRightIcon } from "@phosphor-icons/react/dist/csr/ArrowRight"
+import { CheckCircleIcon } from "@phosphor-icons/react/dist/csr/CheckCircle"
+import { DatabaseIcon } from "@phosphor-icons/react/dist/csr/Database"
+import { DotsThreeIcon } from "@phosphor-icons/react/dist/csr/DotsThree"
+import { GearIcon } from "@phosphor-icons/react/dist/csr/Gear"
+import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch"
+import { GridFourIcon } from "@phosphor-icons/react/dist/csr/GridFour"
+import { StackIcon } from "@phosphor-icons/react/dist/csr/Stack"
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlass"
+import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus"
+import { SidebarSimpleIcon } from "@phosphor-icons/react/dist/csr/SidebarSimple"
+import { TerminalWindowIcon } from "@phosphor-icons/react/dist/csr/TerminalWindow"
+import { WarningCircleIcon } from "@phosphor-icons/react/dist/csr/WarningCircle"
 
 export type IconName =
   | "grid" | "pipeline" | "activity" | "settings" | "search" | "database" | "layers" | "more" | "panelLeft" | "panelRight" | "pulse" | "plus" | "check" | "terminal" | "warning" | "arrow"
 
 export function Icon({ name }: { name: IconName }) {
   const icons = {
-    grid: GridIcon,
-    pipeline: WorkflowIcon,
-    activity: Activity01Icon,
-    pulse: Activity01Icon,
-    settings: Settings01Icon,
-    search: Search01Icon,
-    database: Database01Icon,
-    layers: Layers01Icon,
-    more: MoreHorizontalIcon,
-    panelLeft: PanelLeftCloseIcon,
-    panelRight: PanelRightCloseIcon,
-    plus: PlusSignIcon,
-    check: CheckmarkCircle03Icon,
-    terminal: ComputerTerminal02Icon,
-    warning: Alert02Icon,
-    arrow: ArrowRight01Icon,
+    grid: GridFourIcon,
+    pipeline: GitBranchIcon,
+    activity: PulseIcon,
+    pulse: PulseIcon,
+    settings: GearIcon,
+    search: MagnifyingGlassIcon,
+    database: DatabaseIcon,
+    layers: StackIcon,
+    more: DotsThreeIcon,
+    panelLeft: SidebarSimpleIcon,
+    panelRight: SidebarSimpleIcon,
+    plus: PlusIcon,
+    check: CheckCircleIcon,
+    terminal: TerminalWindowIcon,
+    warning: WarningCircleIcon,
+    arrow: ArrowRightIcon,
   } as const
 
-  return <HugeiconsIcon icon={icons[name]} size={16} color="currentColor" strokeWidth={1.5} />
+  const IconComponent = icons[name]
+  return <IconComponent
+    size={16}
+    color="currentColor"
+    weight="regular"
+    mirrored={name === "panelRight"}
+    aria-hidden="true"
+  />
 }
 
 const navGroups = [
@@ -97,12 +100,7 @@ export function AppShell({ children }: Readonly<{ children?: ReactNode }>) {
             {collapsed ? (
               <img className="brand-logo" src="/porcelain.svg" alt="" aria-hidden="true" />
             ) : (
-              <HugeiconsIcon
-                icon={PanelLeftCloseIcon}
-                size={16}
-                color="currentColor"
-                strokeWidth={1.5}
-              />
+              <SidebarSimpleIcon size={16} color="currentColor" weight="regular" aria-hidden="true" />
             )}
           </button>
         </div>

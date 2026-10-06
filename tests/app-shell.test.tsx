@@ -14,7 +14,7 @@ describe("AppShell", () => {
     })
 
     render(<RouterProvider router={router} />)
-    return waitFor(() => expect(screen.getByText("Porcelain")).toBeTruthy())
+    return waitFor(() => expect(screen.getAllByAltText("Porcelain")).toBeTruthy())
   })
 
   it("collapses and persists the sidebar presentation state", async () => {
