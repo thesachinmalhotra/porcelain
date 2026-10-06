@@ -98,12 +98,16 @@ export function AppShell({ children }: Readonly<{ children?: ReactNode }>) {
             aria-expanded={!collapsed}
             onClick={toggleCollapsed}
           >
-            <HugeiconsIcon
-              icon={collapsed ? PanelLeftOpenIcon : PanelLeftCloseIcon}
-              size={16}
-              color="currentColor"
-              strokeWidth={1.5}
-            />
+            {collapsed ? (
+              <span className="sidebar-collapse-mark" aria-hidden="true">P</span>
+            ) : (
+              <HugeiconsIcon
+                icon={PanelLeftCloseIcon}
+                size={16}
+                color="currentColor"
+                strokeWidth={1.5}
+              />
+            )}
           </button>
         </div>
 
