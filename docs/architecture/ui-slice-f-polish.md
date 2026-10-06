@@ -97,3 +97,31 @@ The interaction direction was distilled from:
 - React documentation for explicit visual state modelling and keyboard-only focus indication.
 
 The implementation deliberately avoids copying a visual skin. Porcelain keeps its own dark, compact, native-Connect identity while adopting the interaction discipline behind those products.
+
+
+## Workbench geometry invariant
+
+The application shell owns the viewport. Route-level workbenches must never use viewport-fixed geometry.
+
+For the Pipeline Workspace:
+
+viewport
+  application shell
+    primary navigation
+    main-content
+      pipeline workbench
+        workspace header
+        workspace frame
+          component library
+          canvas
+          inspector
+
+The shell establishes the exact available rectangle. The workspace then divides that rectangle into sibling grid tracks. At the default desktop density the tracks are:
+
+- library: 216px
+- canvas: minmax(0, 1fr)
+- inspector: 344px
+
+Closing a panel changes its grid track to 0, rather than taking the panel out of flow or positioning it over the canvas. The panel remains mounted so the transition is geometrically meaningful and focusable content is made inert while closed.
+
+This invariant prevents navigation chrome from ever occluding workspace chrome and keeps the top bar, canvas, library, and inspector aligned to the same coordinate system. This follows the workbench-region model used by Figma and VS Code.

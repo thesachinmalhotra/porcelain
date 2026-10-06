@@ -552,7 +552,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
     {validation && !error && <div className={`workspace-alert ${validation.valid ? "success" : "error"}`} role="status"><Icon name={validation.valid ? "check" : "warning"} /><span>{validation.message}</span></div>}
 
     <div className={`workspace-frame${libraryOpen ? " library-open" : " library-closed"}${inspectorOpen ? " inspector-open" : " inspector-closed"}`}>
-      {libraryOpen && <ComponentLibrary components={components} query={libraryQuery} onQueryChange={setLibraryQuery} onOpenCommand={openCommand} onChoose={(component, kind) => void insertComponent({ component, kind })} />}
+      <ComponentLibrary open={libraryOpen} components={components} query={libraryQuery} onQueryChange={setLibraryQuery} onOpenCommand={openCommand} onChoose={(component, kind) => void insertComponent({ component, kind })} />
       <main className="workspace-canvas-column">
         <div className="workspace-canvas-toolbar">
           <div><span className="eyebrow">{workspaceContext ? "Deep work" : "Workspace"}</span><strong>{workspaceContext ? workspaceContext[0].toUpperCase() + workspaceContext.slice(1) : "Stream topology"}</strong></div>
@@ -626,7 +626,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
         </div>
       </main>
 
-      {inspectorOpen && <aside className="workspace-inspector" aria-label="Inspector">
+      <aside className={"workspace-inspector" + (inspectorOpen ? " is-open" : " is-closed")} aria-label="Inspector" aria-hidden={!inspectorOpen} inert={!inspectorOpen}>
         <div className="workspace-inspector-header">
           <div><span className="eyebrow">{selectedSteps.length > 1 ? "selection" : step?.kind ?? "pipeline"}</span><h2>{selectedSteps.length > 1 ? selectedSteps.length + " selected" : step?.label ?? "Pipeline"}</h2>{step && <code>{stepComponent ?? "configuration"}</code>}</div>
           <IconButton label="Inspector menu" onClick={openCommand}><Icon name="more" /></IconButton>
@@ -683,7 +683,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
             {dirty && <div className="inspector-dirty-state"><span className="status-dot" />Draft differs from published configuration <button className="text-button" type="button" onClick={discard}>Revert draft</button></div>}
           </div>
         </> : <div className="workspace-inspector-body"><div className="workspace-inspector-empty"><Icon name="pipeline" /><strong>Select a node</strong><span>Choose a node on the canvas to configure it.</span></div><div className="workspace-inspector-runtime"><div className="section-intro"><strong>Runtime</strong><span>Live from Connect</span></div><dl className="detail-list"><div><dt>Stream</dt><dd className="mono">{selected.connectStreamId ?? "N/A"}</dd></div><div><dt>Status</dt><dd>{statusLabel}</dd></div><div><dt>Uptime</dt><dd>{runtime.connected ? runtime.uptime : "N/A"}</dd></div></dl></div></div>}
-      </aside>}
+      </aside>
       {!libraryOpen && <button className="workspace-edge-toggle workspace-edge-toggle-left" type="button" onClick={() => setLibraryVisibility(true)} aria-label="Show component library" title="Show component library [">
         <Icon name="panelLeft" />
       </button>}

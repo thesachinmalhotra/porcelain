@@ -383,17 +383,18 @@ type ComponentLibraryProps = {
   onQueryChange: (query: string) => void
   onOpenCommand: () => void
   onChoose: (component: ConnectComponentCapability, kind: Exclude<WorkspaceComponentKind, "buffer">) => void
+  open?: boolean
 }
 const libraryKinds: Array<Exclude<WorkspaceComponentKind, "buffer">> = ["input", "processor", "output"]
 
-export function ComponentLibrary({ components, query, onQueryChange, onOpenCommand, onChoose }: ComponentLibraryProps) {
+export function ComponentLibrary({ components, query, onQueryChange, onOpenCommand, onChoose, open = true }: ComponentLibraryProps) {
   const normalized = query.trim().toLowerCase()
   const groups = libraryKinds.map((kind) => ({
     kind,
     items: components.filter((component) => component.kinds.includes(kind)).filter((component) => !normalized || component.name.toLowerCase().includes(normalized)).slice(0, normalized ? 40 : 12),
   })).filter((group) => group.items.length > 0)
 
-  return <aside className="workspace-library" aria-label="Connect component library">
+  return <aside className={"workspace-library" + (open ? " is-open" : " is-closed")} aria-label="Connect component library" aria-hidden={!open} inert={!open}>
     <div className="workspace-library-header"><div><span className="eyebrow">Library</span><h2>Components</h2></div><button className="workspace-library-add" type="button" onClick={onOpenCommand} aria-label="Add component"><Icon name="plus" /></button></div>
     <button className="workspace-command-trigger" type="button" onClick={onOpenCommand}><Icon name="search" /><span>{query || "Search components"}</span><kbd>Cmd K</kbd></button>
     <label className="workspace-library-search"><Icon name="search" /><input aria-label="Filter component library" placeholder="Filter library" value={query} onChange={(event) => onQueryChange(event.target.value)} /></label>
