@@ -26,10 +26,9 @@ export type ConnectComponentCapability = {
 
 export type ConnectCapabilityDiscovery = {
   components: ConnectComponentCapability[]
-  source: "rpk"
+  source: "rpk" | "connect"
   executable: string
   inventoryFormat: "json"
-  schemaFormat: "cue"
 }
 
 export type ConnectCapabilityExecutor = (
@@ -50,18 +49,21 @@ const defaultExecute: ConnectCapabilityExecutor = async (executable, args) => {
 }
 
 /**
- * Connect currently exposes two machine-oriented surfaces through `rpk
- * connect list`: JSON is the component inventory and CUE is the configuration
- * schema. Phase 1 deliberately consumes only the JSON inventory. The CUE
- * schema remains Connect-owned input for the progressive inspector in SAC-45;
- * it is not copied into a Porcelain schema model here.
+ * Connect exposes a machine-readable component inventory through rpk connect list.
+ * Configuration schema discovery is a separate Connect-owned surface consumed by
+ * the native inspector.
  */
 export async function discoverConnectCapabilities(
   options: ConnectCapabilityOptions = {},
 ): Promise<ConnectCapabilityDiscovery> {
-  const executable = options.executable ?? process.env.PORCELAIN_RPK_PATH ?? "rpk"
+  const connectExecutable = process.env.PORCELAIN_CONNECT_EXECUTABLE
+  const executable = options.executable ?? connectExecutable ?? process.env.PORCELAIN_RPK_PATH ?? "rpk"
   const execute = options.execute ?? defaultExecute
-  const { stdout } = await execute(executable, ["connect", "list", "--format", "json"])
+  const isConnectExecutable = Boolean(connectExecutable) || options.executable?.includes("managed-connect") === true
+  const { stdout } = await execute(
+    executable,
+    isConnectExecutable ? ["list", "--format", "json"] : ["connect", "list", "--format", "json"],
+  )
 
   let value: unknown
   try {
@@ -77,15 +79,28 @@ export async function discoverConnectCapabilities(
 
   return {
     components,
-    source: "rpk",
+    source: isConnectExecutable ? "connect" : "rpk",
     executable,
     inventoryFormat: "json",
-    schemaFormat: "cue",
   }
 }
 
 function normalizeComponents(value: unknown): ConnectComponentCapability[] {
   const discovered: ConnectComponentCapability[] = []
+
+  if (isRecord(value)) {
+    for (const [key, children] of Object.entries(value)) {
+      const kind = normalizeKind(key)
+      if (!kind || !Array.isArray(children)) continue
+
+      for (const child of children) {
+        if (typeof child === "string") {
+          discovered.push({ name: child, kinds: [kind] })
+        }
+      }
+    }
+  }
+
   walk(value, undefined, discovered)
 
   const unique = new Map<string, ConnectComponentCapability>()

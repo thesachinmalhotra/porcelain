@@ -1,13 +1,12 @@
-import { createFileRoute, notFound } from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 import { PipelineWorkspace } from "../../features/pipelines/pipeline-workspace"
 import { getPipelineWorkspace } from "../../features/pipelines/server"
 import { getComponents } from "../../features/components/server"
-import type { ConnectComponentCapability } from "../../runtime/connect/capabilities"
+import type { ConnectComponentCapability } from "../../runtime/connect/capabilities.server"
 
 export const Route = createFileRoute("/pipelines/$pipelineId")({
   loader: async ({ params }) => {
     const workspace = await getPipelineWorkspace()
-    if (!workspace.pipelines.some((pipeline) => pipeline.id === params.pipelineId)) throw notFound()
     let components: ConnectComponentCapability[]
     try {
       components = (await getComponents()).components

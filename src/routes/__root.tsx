@@ -8,8 +8,12 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Porcelain · Pipeline operations" },
+      { title: "Porcelain" },
       { name: "description", content: "Operate and observe Redpanda Connect pipelines with Porcelain." },
+    ],
+    links: [
+      { rel: "icon", href: "/porcelain-favicon.svg", type: "image/svg+xml", sizes: "any" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
     ],
   }),
   component: RootComponent,

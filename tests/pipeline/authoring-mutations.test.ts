@@ -7,6 +7,7 @@ import {
   setPipelineAuthoringBuffer,
   setPipelineAuthoringName,
   updatePipelineAuthoring,
+  updatePipelineAuthoringAtPath,
   type PipelineAuthoring,
 } from "../../src/pipeline/authoring"
 
@@ -22,7 +23,13 @@ const base: PipelineAuthoring = {
   ],
   output: { drop: {} },
   connectConfig: {
-    pipeline: { threads: 4, processors: [{ mapping: "old" }] },
+    input: { generate: { interval: "1s" } },
+    buffer: { memory: { limit: 100 } },
+    pipeline: { threads: 4, processors: [
+      { mapping: "root = this", label: "normalize" },
+      { mapping: "root.foo = this.foo" },
+    ] },
+    output: { drop: {} },
     custom_field: { preserved: true },
   },
 }
@@ -36,7 +43,14 @@ describe("pipeline authoring mutations", () => {
       { mapping: "root.foo = this.foo" },
     ])
     expect(base.processors?.[0]).toEqual({ mapping: "root = this", label: "normalize" })
-    expect(next.connectConfig).toEqual(base.connectConfig)
+    expect(next.connectConfig?.pipeline).toEqual({
+      threads: 4,
+      processors: [
+        { mapping: "root = this.foo" },
+        { mapping: "root.foo = this.foo" },
+      ],
+    })
+    expect(next.connectConfig?.custom_field).toEqual({ preserved: true })
   })
 
   it("adds and removes processors while preserving order", () => {
@@ -70,6 +84,53 @@ describe("pipeline authoring mutations", () => {
     const renamed = setPipelineAuthoringName(base, "Orders v2")
     expect(renamed.name).toBe("Orders v2")
     expect(renamed.connectConfig).toEqual(base.connectConfig)
+  })
+
+  it("keeps the native Connect snapshot canonical across sequential mutations", () => {
+    const next = updatePipelineAuthoring(base, { kind: "processor", index: 0 }, { mapping: "root = this.temperature" })
+    const added = addPipelineProcessor(next, { mapping: "root = this.humidity" })
+
+    expect(authoringToConnectConfig(added).pipeline).toEqual({
+      threads: 4,
+      processors: [
+        { mapping: "root = this.temperature" },
+        { mapping: "root.foo = this.foo" },
+        { mapping: "root = this.humidity" },
+      ],
+    })
+    expect(added.connectConfig?.custom_field).toEqual({ preserved: true })
+  })
+
+  it("mutates nested native Connect configuration without inventing a graph model", () => {
+    const workflow = updatePipelineAuthoringAtPath(
+      base,
+      ["pipeline", "processors", 0, "workflow", "branches", "request", "processors", 0, "mapping"],
+      "root = this.body",
+    )
+
+    expect(authoringToConnectConfig(workflow)).toEqual({
+      pipeline: {
+        threads: 4,
+        processors: [
+          {
+            mapping: "root = this",
+            label: "normalize",
+            workflow: {
+              branches: {
+                request: {
+                  processors: [{ mapping: "root = this.body" }],
+                },
+              },
+            },
+          },
+          { mapping: "root.foo = this.foo" },
+        ],
+      },
+      custom_field: { preserved: true },
+      input: { generate: { interval: "1s" } },
+      buffer: { memory: { limit: 100 } },
+      output: { drop: {} },
+    })
   })
 
   it("preserves unknown Connect fields when converting after mutations", () => {

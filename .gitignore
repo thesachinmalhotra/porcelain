@@ -25,6 +25,8 @@ dist/
 build/
 *.exe
 *.out
+.output/
+.porcelain-connect-*/
 
 # Local Porcelain state
 .porcelain/

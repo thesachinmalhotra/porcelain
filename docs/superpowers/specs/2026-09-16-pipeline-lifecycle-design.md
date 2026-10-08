@@ -23,6 +23,13 @@ Update the associated Connect stream using the existing Connect PUT operation, b
 ### Delete
 
 If a pipeline has an associated Connect stream, delete that stream first. A Connect 404 for an already-missing associated stream is treated as an absent runtime, allowing durable deletion to proceed. Once the runtime deletion has succeeded or was already absent, remove the durable Porcelain pipeline.
+### Publish existing authoring drafts
+
+The authoring publish path uses the same lifecycle boundary rather than mutating Connect or the durable store itself. Before mutation, Porcelain may ask rpk connect lint for editor/preflight feedback; the Streams API remains the final runtime gate because Connect validates configurations on create/update.
+
+Publishing an existing durable pipeline resolves its lifecycle-owned connectStreamId, updates the associated stream when present, and recreates it with POST when the runtime stream is missing. A stream that disappears between lookup and PUT is treated as a missing runtime and recreated. Only after the Connect mutation succeeds is the new durable revision persisted.
+
+Runtime projection after publish is best-effort: failure to read the stream or its stats does not change the success of an already-completed Connect mutation.
 
 ## Boundaries
 

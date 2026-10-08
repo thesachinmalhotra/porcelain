@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { discoverConnectCapabilities } from "../../src/runtime/connect/capabilities"
+import { discoverConnectCapabilities } from "../../src/runtime/connect/capabilities.server"
 
 describe("Connect capability discovery", () => {
   it("discovers the installed Connect component universe through rpk", async () => {
@@ -76,7 +76,6 @@ describe("Connect capability discovery", () => {
     })
 
     expect(result.inventoryFormat).toBe("json")
-    expect(result.schemaFormat).toBe("cue")
     expect(result.components).toEqual([
       { name: "mapping", kinds: ["processor"], status: "beta" },
       { name: "redpanda", kinds: ["input", "output"], status: "stable" },

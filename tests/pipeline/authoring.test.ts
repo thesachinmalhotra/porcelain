@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest"
-import { addPipelineProcessor, authoringToConnectConfig, replacePipelineAuthoringConfig, updatePipelineAuthoring, validatePipelineAuthoring } from "../../src/pipeline/authoring"
+import {
+  addPipelineProcessor,
+  authoringToConnectConfig,
+  connectPipelineAuthoring,
+  disconnectPipelineAuthoring,
+  projectConnectConfig,
+  replacePipelineAuthoringConfig,
+  updatePipelineAuthoring,
+  validatePipelineAuthoring,
+  validatePipelineConnection,
+} from "../../src/pipeline/authoring"
 import { authoringFromDefinition } from "../../src/pipeline/pipeline"
 
 describe("pipeline authoring", () => {
@@ -47,6 +57,41 @@ describe("pipeline authoring", () => {
       input: "generate" as unknown as Record<string, unknown>,
       output: { drop: {} },
     })).toThrow("Pipeline input must be an object")
+  })
+})
+
+describe("native Connect projection", () => {
+  it("projects the native stream boundary without dropping nested processor config", () => {
+    const projection = projectConnectConfig({
+      input: { http_server: { path: "/events" } },
+      pipeline: {
+        threads: 4,
+        processors: [
+          {
+            workflow: {
+              branches: {
+                enrich: {
+                  processors: [{ mapping: "root = this" }],
+                },
+              },
+            },
+          },
+        ],
+      },
+      output: { drop: {} },
+    })
+
+    expect(projection.input).toEqual({ http_server: { path: "/events" } })
+    expect(projection.processors?.[0]).toEqual({
+      workflow: {
+        branches: {
+          enrich: {
+            processors: [{ mapping: "root = this" }],
+          },
+        },
+      },
+    })
+    expect(projection.output).toEqual({ drop: {} })
   })
 })
 
@@ -102,9 +147,9 @@ describe("pipeline authoring round-trip", () => {
     }
 
     const authoring = authoringFromDefinition(definition, revision)
-    authoring.input = { generate: { interval: "2s" } }
+    const updated = updatePipelineAuthoring(authoring, { kind: "input" }, { generate: { interval: "2s" } })
 
-    expect(authoringToConnectConfig(authoring)).toEqual({
+    expect(authoringToConnectConfig(updated)).toEqual({
       input: { generate: { interval: "2s" } },
       buffer: { memory: { limit: 100 } },
       pipeline: {
@@ -156,5 +201,129 @@ describe("pipeline authoring round-trip", () => {
       output: { drop: {} },
       observability: { metrics: { type: "prometheus" } },
     })
+  })
+})
+
+
+describe("native topology transformations", () => {
+  const base = {
+    id: "orders",
+    name: "Orders",
+    input: { stdin: {} },
+    output: { drop: {} },
+  }
+
+  it.each([0, 1, 2, 10])("projects %i processors in native Connect order", (count) => {
+    const processors = Array.from({ length: count }, (_, index) => ({ mapping: "processor-" + index }))
+    const authoring = { ...base, ...(count > 0 ? { processors } : {}) }
+    const config = authoringToConnectConfig(authoring)
+    expect(config.input).toEqual(base.input)
+    expect(config.output).toEqual(base.output)
+    expect(config.pipeline).toEqual(count > 0 ? { processors } : undefined)
+    expect(projectConnectConfig(config).processors).toEqual(count > 0 ? processors : undefined)
+  })
+
+  it("preserves buffer and processor ordering through native config", () => {
+    const authoring = {
+      ...base,
+      buffer: { memory: { limit: 100 } },
+      processors: [{ mapping: "one" }, { mapping: "two" }, { mapping: "three" }],
+    }
+    expect(authoringToConnectConfig(authoring)).toEqual({
+      input: base.input,
+      buffer: authoring.buffer,
+      pipeline: { processors: authoring.processors },
+      output: base.output,
+    })
+  })
+
+  it("round-trips native topology without inventing identity", () => {
+    const authoring = {
+      ...base,
+      buffer: { memory: {} },
+      processors: [{ label: "first", mapping: "one" }, { label: "second", mapping: "two" }],
+    }
+    const config = authoringToConnectConfig(authoring)
+    const projection = projectConnectConfig(config)
+    expect(projection).toEqual({
+      input: authoring.input,
+      buffer: authoring.buffer,
+      processors: authoring.processors,
+      output: authoring.output,
+    })
+  })
+
+  it("defines the valid connection matrix", () => {
+    const withProcessors = { ...base, processors: [{ mapping: "one" }, { mapping: "two" }] }
+    const withBuffer = { ...withProcessors, buffer: { memory: {} } }
+    const cases = [
+      [withBuffer, { source: { kind: "input" }, target: { kind: "buffer" } }, true],
+      [withBuffer, { source: { kind: "buffer" }, target: { kind: "processor", index: 0 } }, true],
+      [withProcessors, { source: { kind: "input" }, target: { kind: "processor", index: 1 } }, true],
+      [withProcessors, { source: { kind: "processor", index: 0 }, target: { kind: "processor", index: 1 } }, true],
+      [withProcessors, { source: { kind: "processor", index: 0 }, target: { kind: "output" } }, true],
+      [{ ...base, buffer: { memory: {} } }, { source: { kind: "buffer" }, target: { kind: "output" } }, true],
+      [base, { source: { kind: "input" }, target: { kind: "output" } }, true],
+      [withBuffer, { source: { kind: "input" }, target: { kind: "processor", index: 0 } }, false],
+      [withProcessors, { source: { kind: "buffer" }, target: { kind: "output" } }, false],
+      [withProcessors, { source: { kind: "output" }, target: { kind: "processor", index: 0 } }, false],
+    ] as const
+
+    for (const [authoring, connection, valid] of cases) {
+      expect(validatePipelineConnection(authoring, connection).valid).toBe(valid)
+    }
+  })
+
+  it("makes disconnected edges explicit instead of persisting a second graph model", () => {
+    expect(() => disconnectPipelineAuthoring(base, {
+      source: { kind: "input" },
+      target: { kind: "output" },
+    })).toThrow(/do not persist disconnected edges/)
+  })
+})
+
+describe("spatial connection authoring", () => {
+  const base = {
+    id: "orders",
+    name: "Orders",
+    input: { stdin: {} },
+    processors: [{ mapping: "one" }, { mapping: "two" }, { mapping: "three" }],
+    output: { drop: {} },
+    connectConfig: {
+      input: { stdin: {} },
+      pipeline: { processors: [{ mapping: "one" }, { mapping: "two" }, { mapping: "three" }] },
+      output: { drop: {} },
+    },
+  }
+
+  it("moves a processor when connected to another processor", () => {
+    const next = connectPipelineAuthoring(base, {
+      source: { kind: "processor", index: 2 },
+      target: { kind: "processor", index: 0 },
+    })
+    expect(next.processors).toEqual([{ mapping: "three" }, { mapping: "one" }, { mapping: "two" }])
+  })
+
+  it("moves a processor to the start from the input", () => {
+    const next = connectPipelineAuthoring(base, {
+      source: { kind: "input" },
+      target: { kind: "processor", index: 2 },
+    })
+    expect(next.processors).toEqual([{ mapping: "three" }, { mapping: "one" }, { mapping: "two" }])
+  })
+
+  it("moves a processor to the end from the output", () => {
+    const next = connectPipelineAuthoring(base, {
+      source: { kind: "processor", index: 0 },
+      target: { kind: "output" },
+    })
+    expect(next.processors).toEqual([{ mapping: "two" }, { mapping: "three" }, { mapping: "one" }])
+  })
+
+  it("rejects a connection that would bypass a configured buffer", () => {
+    expect(() => connectPipelineAuthoring({ ...base, buffer: { memory: {} } }, {
+      source: { kind: "input" },
+      target: { kind: "processor", index: 0 },
+    })).toThrow(/buffer sits between/)
   })
 })

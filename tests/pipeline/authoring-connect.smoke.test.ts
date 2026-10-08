@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest"
 import { createAuthoredPipeline, updateAuthoredPipeline } from "../../src/pipeline/authoring-lifecycle"
 import { createConnectClient, ConnectRequestError } from "../../src/runtime/connect/client"
 import { createPipelineLifecycle } from "../../src/pipeline/lifecycle"
-import { createPipelineStore } from "../../src/pipeline/store"
+import { createPipelineStore } from "../../src/pipeline/store.server"
 
 describe("authored pipeline against real Connect", () => {
   it("creates, reads, updates, and deletes an authored stream", async () => {

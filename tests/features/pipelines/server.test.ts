@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { loadPipelineWorkspace } from "../../../src/features/pipelines/server"
-import { createPipelineStore } from "../../../src/pipeline/store"
+import { createPipelineStore } from "../../../src/pipeline/store.server"
 
 const tempDirs: string[] = []
 
