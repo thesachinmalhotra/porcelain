@@ -1,13 +1,15 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { Link } from "@tanstack/react-router"
-import { PulseIcon } from "@phosphor-icons/react/dist/csr/Pulse"
+import { AirplayIcon } from "@phosphor-icons/react/dist/csr/Airplay"
+import { BorderBeam } from "border-beam"
+import { ListDashesIcon } from "@phosphor-icons/react/dist/csr/ListDashes"
 import { ArrowRightIcon } from "@phosphor-icons/react/dist/csr/ArrowRight"
 import { CheckCircleIcon } from "@phosphor-icons/react/dist/csr/CheckCircle"
 import { DatabaseIcon } from "@phosphor-icons/react/dist/csr/Database"
 import { DotsThreeIcon } from "@phosphor-icons/react/dist/csr/DotsThree"
 import { GearIcon } from "@phosphor-icons/react/dist/csr/Gear"
-import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch"
-import { GridFourIcon } from "@phosphor-icons/react/dist/csr/GridFour"
+import { FlowArrowIcon } from "@phosphor-icons/react/dist/csr/FlowArrow"
+import { CompassIcon } from "@phosphor-icons/react/dist/csr/Compass"
 import { StackIcon } from "@phosphor-icons/react/dist/csr/Stack"
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlass"
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus"
@@ -18,12 +20,35 @@ import { WarningCircleIcon } from "@phosphor-icons/react/dist/csr/WarningCircle"
 export type IconName =
   | "grid" | "pipeline" | "activity" | "settings" | "search" | "database" | "layers" | "more" | "panelLeft" | "panelRight" | "pulse" | "plus" | "check" | "terminal" | "warning" | "arrow"
 
+function ConnectedRuntimeBeam({ children }: Readonly<{ children: ReactNode }>) {
+  const [supported, setSupported] = useState(false)
+
+  useEffect(() => {
+    setSupported(typeof window.matchMedia === "function")
+  }, [])
+
+  if (!supported) return <>{children}</>
+
+  return (
+    <BorderBeam
+      className="connect-beam"
+      size="md"
+      colorVariant="colorful"
+      theme="dark"
+      strength={0.65}
+      duration={4.5}
+    >
+      {children}
+    </BorderBeam>
+  )
+}
+
 export function Icon({ name }: { name: IconName }) {
   const icons = {
-    grid: GridFourIcon,
-    pipeline: GitBranchIcon,
-    activity: PulseIcon,
-    pulse: PulseIcon,
+    grid: CompassIcon,
+    pipeline: FlowArrowIcon,
+    activity: ListDashesIcon,
+    pulse: AirplayIcon,
     settings: GearIcon,
     search: MagnifyingGlassIcon,
     database: DatabaseIcon,
@@ -132,14 +157,16 @@ export function AppShell({ children }: Readonly<{ children?: ReactNode }>) {
         </nav>
 
         <div className="sidebar-footer">
-          <Link className="connect-indicator" to="/runtime" title={collapsed ? "Redpanda Connect - Local runtime" : undefined}>
-            <span className="status-dot online" />
-            <span className="connect-copy">
-              <strong>Redpanda Connect</strong>
-              <small>Local runtime</small>
-            </span>
-            <span className="runtime-badge">Live</span>
-          </Link>
+          <ConnectedRuntimeBeam>
+            <Link className="connect-indicator" to="/runtime" title={collapsed ? "Redpanda Connect - Local runtime" : undefined}>
+              <span className="status-dot online" />
+              <span className="connect-copy">
+                <strong>Redpanda Connect</strong>
+                <small>Local runtime</small>
+              </span>
+              <span className="runtime-badge">Live</span>
+            </Link>
+          </ConnectedRuntimeBeam>
 
           <Link activeProps={{ className: "nav-item active" }} inactiveProps={{ className: "nav-item" }} to="/settings" title={collapsed ? "Settings" : undefined}>
             <Icon name="settings" />
