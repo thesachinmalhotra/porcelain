@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from "@tanstack/react-router"
 import { afterEach, describe, expect, it } from "vitest"
 import { AppShell } from "../src/components/app-shell"
@@ -45,8 +45,11 @@ describe("AppShell", () => {
     })
 
     render(<RouterProvider router={router} />)
-    const overview = await waitFor(() => screen.getByRole("link", { name: "Overview" }))
-    expect(overview.className).toContain("active")
+    const overviewLinks = await waitFor(() => screen.getAllByRole("link", { name: "Overview" }))
+    expect(overviewLinks.some((link) => link.className.includes("active"))).toBe(true)
+    const tabs = screen.getByRole("navigation", { name: "Open views" })
+    expect(tabs).toBeTruthy()
+    expect(within(tabs).getByRole("link", { name: "Overview", current: "page" })).toBeTruthy()
   })
 
   it("opens a real global command menu from the shell search control", async () => {

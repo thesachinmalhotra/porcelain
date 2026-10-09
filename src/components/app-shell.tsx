@@ -16,6 +16,8 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/dist/csr/SidebarSimple"
 import { TerminalWindowIcon } from "@phosphor-icons/react/dist/csr/TerminalWindow"
 import { WarningCircleIcon } from "@phosphor-icons/react/dist/csr/WarningCircle"
 import { XIcon } from "@phosphor-icons/react/dist/csr/X"
+import { CaretLeftIcon } from "@phosphor-icons/react/dist/csr/CaretLeft"
+import { CaretRightIcon } from "@phosphor-icons/react/dist/csr/CaretRight"
 import { Button, IconButton, Input, KeyboardShortcut } from "../ui/primitives"
 
 export type IconName =
@@ -105,6 +107,47 @@ const staticDestinations: StaticDestination[] = [
   { type: "destination", label: "Event schemas", description: "Review observed component types", group: "Discover", icon: "database", to: "/schemas" },
   { type: "destination", label: "Settings", description: "Configure this workspace", group: "Workspace", icon: "settings", to: "/settings" },
 ]
+
+function AppTabBar({
+  pathname,
+  pipelines,
+  onOpenCommand,
+}: {
+  pathname: string
+  pipelines: ShellContext["pipelines"]
+  onOpenCommand: () => void
+}) {
+  const pinnedTabs = [
+    { label: "Overview", icon: "grid" as const, to: "/overview" as const },
+    { label: "Pipelines", icon: "pipeline" as const, to: "/pipelines" as const },
+    { label: "Runtime", icon: "pulse" as const, to: "/runtime" as const },
+  ]
+  const pipelineId = pathname.startsWith("/pipelines/") ? decodeURIComponent(pathname.slice("/pipelines/".length)) : null
+  const activePipeline = pipelineId ? pipelines.find((pipeline) => pipeline.id === pipelineId) : undefined
+  const contextualDestination = staticDestinations.find((item) => item.to === pathname && !pinnedTabs.some((tab) => tab.to === item.to))
+
+  return <header className="app-tabbar">
+    <div className="app-tab-history" aria-label="Navigation history">
+      <IconButton label="Go back" onClick={() => window.history.back()}><CaretLeftIcon aria-hidden="true" /></IconButton>
+      <IconButton label="Go forward" onClick={() => window.history.forward()}><CaretRightIcon aria-hidden="true" /></IconButton>
+    </div>
+    <nav className="app-tabs" aria-label="Open views">
+      {pinnedTabs.map((tab) => {
+        const active = pathname === tab.to
+        return <Link className={`app-tab${active ? " active" : ""}`} aria-current={active ? "page" : undefined} key={tab.to} to={tab.to}>
+          <Icon name={tab.icon} /><span>{tab.label}</span>
+        </Link>
+      })}
+      {activePipeline ? <Link className="app-tab active" aria-current="page" to="/pipelines/$pipelineId" params={{ pipelineId: activePipeline.id }}>
+        <Icon name="pipeline" /><span>{activePipeline.name}</span>
+      </Link> : null}
+      {contextualDestination ? <Link className="app-tab active" aria-current="page" to={contextualDestination.to}>
+        <Icon name={contextualDestination.icon} /><span>{contextualDestination.label}</span>
+      </Link> : null}
+      <IconButton className="app-tab-add" label="Open another view" onClick={onOpenCommand}><PlusIcon aria-hidden="true" /></IconButton>
+    </nav>
+  </header>
+}
 
 function GlobalCommandMenu({
   open,
@@ -297,7 +340,7 @@ export function AppShell({ children, context }: Readonly<{ children?: ReactNode;
         >
           <Icon name="search" />
           <span className="search-label">Search Porcelain</span>
-          <KeyboardShortcut className="search-shortcut">⌘K</KeyboardShortcut>
+          <KeyboardShortcut className="search-shortcut">⌘ K</KeyboardShortcut>
         </Button>
 
         <nav aria-label="Primary navigation" className="app-navigation">
@@ -346,7 +389,10 @@ export function AppShell({ children, context }: Readonly<{ children?: ReactNode;
         </div>
       </aside>
 
-      <main className="main-content" id="main-content">{children}</main>
+      <div className="app-content">
+        <AppTabBar pathname={pathname} pipelines={context?.pipelines ?? []} onOpenCommand={() => setCommandOpen(true)} />
+        <main className="main-content" id="main-content">{children}</main>
+      </div>
       <GlobalCommandMenu open={commandOpen} pipelines={context?.pipelines ?? []} onClose={closeCommand} />
     </div>
   )
