@@ -1081,6 +1081,58 @@ body { min-width: 1180px; background-image: none; }
   }
 }
 
+/* ReInterface: the brand lockup is the sidebar toggle, never a duplicate control. */
+.sidebar-topbar {
+  display: flex;
+  align-items: center;
+  padding: 0;
+}
+
+.brand-toggle.button {
+  display: flex;
+  width: 100%;
+  height: var(--ui-control-lg);
+  min-height: var(--ui-control-lg);
+  justify-content: flex-start;
+  gap: calc(var(--ui-unit) * 3);
+  padding: calc(var(--ui-unit) * 1.5) calc(var(--ui-unit) * 2);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--ui-radius-control);
+  background: transparent;
+  box-shadow: none;
+}
+
+.brand-toggle.button:hover {
+  border: 0;
+  background: var(--p-control);
+}
+
+.brand-toggle .brand-logo {
+  width: calc(var(--ui-icon-hero) + var(--ui-unit));
+  height: calc(var(--ui-icon-hero) + var(--ui-unit));
+  flex: none;
+  opacity: 1;
+}
+
+.brand-toggle .brand-wordmark {
+  width: calc(var(--ui-shell-sidebar) * .42);
+  height: calc(var(--ui-icon-hero) + var(--ui-unit));
+  flex: none;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.sidebar-collapsed .brand-toggle.button {
+  width: var(--ui-control-lg);
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar-collapsed .brand-toggle .brand-wordmark {
+  display: none;
+}
+
 @media (max-width: 600px) {
   .pipeline-index-header {
     padding: 0 16px;

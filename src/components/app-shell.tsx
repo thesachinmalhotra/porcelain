@@ -311,22 +311,17 @@ export function AppShell({ children, context }: Readonly<{ children?: ReactNode;
     <div className={"app-shell" + (collapsed ? " sidebar-collapsed" : "")}>
       <aside className="app-sidebar">
         <div className="sidebar-topbar">
-          <div className="workspace-identity">
-            <img className="brand-logo" src="/porcelain.svg" alt="Porcelain" />
-            <img className="brand-wordmark" src="/porcelain-wordmark.svg" alt="Porcelain" />
-          </div>
-          <IconButton
-            className="sidebar-collapse"
-            label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          <Button
+            className="brand-toggle"
+            variant="ghost"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-expanded={!collapsed}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             onClick={toggleCollapsed}
           >
-            {collapsed ? (
-              <img className="brand-logo" src="/porcelain.svg" alt="" aria-hidden="true" />
-            ) : (
-              <SidebarSimpleIcon size={16} color="currentColor" weight="regular" aria-hidden="true" />
-            )}
-          </IconButton>
+            <img className="brand-logo" src="/porcelain.svg" alt="" aria-hidden="true" />
+            <img className="brand-wordmark" src="/porcelain-wordmark.svg" alt="Porcelain" />
+          </Button>
         </div>
 
         <Button
