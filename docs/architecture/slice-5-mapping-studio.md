@@ -1,4 +1,4 @@
-# Slice 5"ιέyψ§yΤ Mapping Studio
+# Slice 5 β€” Mapping Studio
 
 ## Purpose
 

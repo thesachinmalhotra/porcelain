@@ -707,12 +707,12 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
     />
 
     {showCreate && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowCreate(false) }}><form className="modal" onSubmit={(event) => { event.preventDefault(); void create() }}>
-      <div className="modal-header"><div><span className="eyebrow">Pipeline</span><h2>New pipeline</h2></div><button className="icon-button" type="button" onClick={() => setShowCreate(false)} aria-label="Close">?</button></div>
+      <div className="modal-header"><div><span className="eyebrow">Pipeline</span><h2>New pipeline</h2></div><button className="icon-button" type="button" onClick={() => setShowCreate(false)} aria-label="Close">×</button></div>
       <label>Pipeline ID<input autoFocus value={newId} onChange={(event) => setNewId(event.target.value)} placeholder="pipeline-id" /></label>
       <label>Name<input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Pipeline" /></label>
       <p className="modal-help">Creates a real Redpanda Connect stream with a native stdin input and drop output. Replace either component from the workspace.</p>
       {error && <div className="error-banner" role="alert">{error}</div>}
-      <div className="modal-actions"><button className="button button-ghost" type="button" onClick={() => setShowCreate(false)}>Cancel</button><button className="button button-primary" type="submit" disabled={saving}>{saving ? "Creating?" : "Create pipeline"}</button></div>
+      <div className="modal-actions"><button className="button button-ghost" type="button" onClick={() => setShowCreate(false)}>Cancel</button><button className="button button-primary" type="submit" disabled={saving}>{saving ? "Creating…" : "Create pipeline"}</button></div>
     </form></div>}
   </div>
 }

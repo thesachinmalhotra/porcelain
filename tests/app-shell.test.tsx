@@ -48,4 +48,43 @@ describe("AppShell", () => {
     const overview = await waitFor(() => screen.getByRole("link", { name: "Overview" }))
     expect(overview.className).toContain("active")
   })
+
+  it("opens a real global command menu from the shell search control", async () => {
+    const rootRoute = createRootRoute({
+      component: () => <AppShell context={{
+        runtime: { reachable: true, ready: true },
+        pipelines: [{ id: "orders", name: "Order events" }],
+      }} />,
+    })
+    const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/" })
+    const router = createRouter({
+      routeTree: rootRoute.addChildren([indexRoute]),
+      history: createMemoryHistory({ initialEntries: ["/"] }),
+    })
+
+    render(<RouterProvider router={router} />)
+    fireEvent.click(await waitFor(() => screen.getByRole("button", { name: /search porcelain/i })))
+
+    expect(await screen.findByRole("dialog", { name: "Search Porcelain" })).toBeTruthy()
+    expect(screen.getByRole("option", { name: /Order events/ })).toBeTruthy()
+    expect(screen.getByRole("textbox", { name: "Search pipelines and destinations" })).toBe(document.activeElement)
+  })
+
+  it("does not claim the runtime is live when Connect is unreachable", async () => {
+    const rootRoute = createRootRoute({
+      component: () => <AppShell context={{
+        runtime: { reachable: false, ready: false },
+        pipelines: [],
+      }} />,
+    })
+    const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/" })
+    const router = createRouter({
+      routeTree: rootRoute.addChildren([indexRoute]),
+      history: createMemoryHistory({ initialEntries: ["/"] }),
+    })
+
+    render(<RouterProvider router={router} />)
+    expect(await screen.findByText("Runtime unreachable")).toBeTruthy()
+    expect(screen.queryByText("Live")).toBeNull()
+  })
 })

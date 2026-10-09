@@ -1,7 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react"
-import { Link } from "@tanstack/react-router"
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router"
 import { AirplayIcon } from "@phosphor-icons/react/dist/csr/Airplay"
-import { BorderBeam } from "border-beam"
 import { ListDashesIcon } from "@phosphor-icons/react/dist/csr/ListDashes"
 import { ArrowRightIcon } from "@phosphor-icons/react/dist/csr/ArrowRight"
 import { CheckCircleIcon } from "@phosphor-icons/react/dist/csr/CheckCircle"
@@ -16,32 +15,36 @@ import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus"
 import { SidebarSimpleIcon } from "@phosphor-icons/react/dist/csr/SidebarSimple"
 import { TerminalWindowIcon } from "@phosphor-icons/react/dist/csr/TerminalWindow"
 import { WarningCircleIcon } from "@phosphor-icons/react/dist/csr/WarningCircle"
+import { XIcon } from "@phosphor-icons/react/dist/csr/X"
+import { Button, IconButton, Input, KeyboardShortcut } from "../ui/primitives"
 
 export type IconName =
   | "grid" | "pipeline" | "activity" | "settings" | "search" | "database" | "layers" | "more" | "panelLeft" | "panelRight" | "pulse" | "plus" | "check" | "terminal" | "warning" | "arrow"
 
-function ConnectedRuntimeBeam({ children }: Readonly<{ children: ReactNode }>) {
-  const [supported, setSupported] = useState(false)
-
-  useEffect(() => {
-    setSupported(typeof window.matchMedia === "function")
-  }, [])
-
-  if (!supported) return <>{children}</>
-
-  return (
-    <BorderBeam
-      className="connect-beam"
-      size="md"
-      colorVariant="colorful"
-      theme="dark"
-      strength={0.65}
-      duration={4.5}
-    >
-      {children}
-    </BorderBeam>
-  )
+type ShellContext = {
+  runtime: { reachable: boolean; ready: boolean }
+  pipelines: Array<{ id: string; name: string }>
 }
+
+type StaticDestination = {
+  type: "destination"
+  label: string
+  description: string
+  group: "Operate" | "Discover" | "Workspace"
+  icon: IconName
+  to: "/overview" | "/pipelines" | "/runtime" | "/activity" | "/streams" | "/components" | "/schemas" | "/settings"
+}
+
+type PipelineDestination = {
+  type: "pipeline"
+  label: string
+  description: string
+  group: "Pipelines"
+  icon: "pipeline"
+  pipelineId: string
+}
+
+type CommandDestination = StaticDestination | PipelineDestination
 
 export function Icon({ name }: { name: IconName }) {
   const icons = {
@@ -92,13 +95,167 @@ const navGroups = [
   },
 ] as const
 
-export function AppShell({ children }: Readonly<{ children?: ReactNode }>) {
+const staticDestinations: StaticDestination[] = [
+  { type: "destination", label: "Overview", description: "Workspace health and recent activity", group: "Operate", icon: "grid", to: "/overview" },
+  { type: "destination", label: "Pipelines", description: "Build and operate Connect pipelines", group: "Operate", icon: "pipeline", to: "/pipelines" },
+  { type: "destination", label: "Runtime", description: "Inspect live Connect telemetry", group: "Operate", icon: "pulse", to: "/runtime" },
+  { type: "destination", label: "Activity", description: "Review operational events", group: "Operate", icon: "activity", to: "/activity" },
+  { type: "destination", label: "Connect streams", description: "Inspect runtime-owned streams", group: "Operate", icon: "database", to: "/streams" },
+  { type: "destination", label: "Components", description: "Browse installed Connect capabilities", group: "Discover", icon: "layers", to: "/components" },
+  { type: "destination", label: "Event schemas", description: "Review observed component types", group: "Discover", icon: "database", to: "/schemas" },
+  { type: "destination", label: "Settings", description: "Configure this workspace", group: "Workspace", icon: "settings", to: "/settings" },
+]
+
+function GlobalCommandMenu({
+  open,
+  pipelines,
+  onClose,
+}: {
+  open: boolean
+  pipelines: ShellContext["pipelines"]
+  onClose: () => void
+}) {
+  const navigate = useNavigate()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [query, setQuery] = useState("")
+  const [activeIndex, setActiveIndex] = useState(0)
+  const items = useMemo<CommandDestination[]>(() => [
+    ...staticDestinations,
+    ...pipelines.map((pipeline) => ({
+      type: "pipeline" as const,
+      label: pipeline.name,
+      description: pipeline.id,
+      group: "Pipelines" as const,
+      icon: "pipeline" as const,
+      pipelineId: pipeline.id,
+    })),
+  ], [pipelines])
+  const results = useMemo(() => {
+    const normalized = query.trim().toLowerCase()
+    if (!normalized) return items
+    return items.filter((item) =>
+      `${item.label} ${item.description} ${item.group}`.toLowerCase().includes(normalized),
+    )
+  }, [items, query])
+
+  useEffect(() => {
+    if (!open) return
+    setQuery("")
+    setActiveIndex(0)
+    window.requestAnimationFrame(() => inputRef.current?.focus())
+  }, [open])
+
+  useEffect(() => {
+    setActiveIndex((current) => Math.min(current, Math.max(0, results.length - 1)))
+  }, [results.length])
+
+  if (!open) return null
+
+  const openDestination = (item: CommandDestination | undefined) => {
+    if (!item) return
+    onClose()
+    if (item.type === "pipeline") {
+      void navigate({ to: "/pipelines/$pipelineId", params: { pipelineId: item.pipelineId } })
+      return
+    }
+    void navigate({ to: item.to })
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault()
+      setActiveIndex((index) => Math.min(index + 1, results.length - 1))
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault()
+      setActiveIndex((index) => Math.max(index - 1, 0))
+    } else if (event.key === "Enter") {
+      event.preventDefault()
+      openDestination(results[activeIndex])
+    } else if (event.key === "Escape") {
+      event.preventDefault()
+      onClose()
+    }
+  }
+
+  return <div className="global-command-backdrop" role="presentation" onMouseDown={onClose}>
+    <section className="global-command" role="dialog" aria-modal="true" aria-label="Search Porcelain" onMouseDown={(event) => event.stopPropagation()}>
+      <div className="global-command-input">
+        <Icon name="search" />
+        <Input
+          ref={inputRef}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Search pipelines and destinations"
+          aria-label="Search pipelines and destinations"
+          aria-controls="global-command-results"
+          aria-activedescendant={results[activeIndex] ? `global-command-${activeIndex}` : undefined}
+        />
+        <IconButton className="global-command-close" label="Close search" onClick={onClose}><XIcon aria-hidden="true" /></IconButton>
+      </div>
+      <div className="global-command-meta"><span>{query ? "Search results" : "Quick access"}</span><span>{results.length}</span></div>
+      <div className="global-command-results" id="global-command-results" role="listbox" aria-label="Search results">
+        {results.map((item, index) => <Button
+          className={`global-command-result${index === activeIndex ? " active" : ""}`}
+          variant="ghost"
+          role="option"
+          aria-selected={index === activeIndex}
+          id={`global-command-${index}`}
+          key={item.type === "pipeline" ? `pipeline:${item.pipelineId}` : item.to}
+          onMouseEnter={() => setActiveIndex(index)}
+          onClick={() => openDestination(item)}
+        >
+          <span className="global-command-result-icon"><Icon name={item.icon} /></span>
+          <span className="global-command-result-copy"><strong>{item.label}</strong><small>{item.description}</small></span>
+          <span className="global-command-result-group">{item.group}</span>
+          {index === activeIndex ? <KeyboardShortcut>↵</KeyboardShortcut> : null}
+        </Button>)}
+        {!results.length ? <div className="global-command-empty"><strong>No results</strong><span>Try a pipeline name, destination, or feature.</span></div> : null}
+      </div>
+      <footer className="global-command-footer">
+        <span><KeyboardShortcut>↑</KeyboardShortcut><KeyboardShortcut>↓</KeyboardShortcut> Navigate</span>
+        <span><KeyboardShortcut>↵</KeyboardShortcut> Open</span>
+        <span><KeyboardShortcut>Esc</KeyboardShortcut> Close</span>
+      </footer>
+    </section>
+  </div>
+}
+
+export function AppShell({ children, context }: Readonly<{ children?: ReactNode; context?: ShellContext }>) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const searchTriggerRef = useRef<HTMLButtonElement>(null)
   const [collapsed, setCollapsed] = useState(false)
+  const [commandOpen, setCommandOpen] = useState(false)
+  const runtime = context?.runtime
+  const runtimeState = !runtime ? "unknown" : !runtime.reachable ? "unreachable" : runtime.ready ? "ready" : "degraded"
+  const runtimeLabel = runtimeState === "ready" ? "Connect ready" : runtimeState === "degraded" ? "Connect degraded" : runtimeState === "unreachable" ? "Runtime unreachable" : "Status unavailable"
+  const runtimeDetail = runtimeState === "ready" ? "Local runtime" : runtimeState === "degraded" ? "Readiness check failed" : runtimeState === "unreachable" ? "Check runtime settings" : "Open runtime for details"
 
   useEffect(() => {
     setCollapsed(window.localStorage.getItem("porcelain.sidebar.collapsed") === "true")
   }, [])
 
+  useEffect(() => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape" && commandOpen) {
+        event.preventDefault()
+        setCommandOpen(false)
+        searchTriggerRef.current?.focus()
+        return
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k" && !pathname.startsWith("/pipelines/")) {
+        event.preventDefault()
+        setCommandOpen(true)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [commandOpen, pathname])
+
+  const closeCommand = () => {
+    setCommandOpen(false)
+    window.requestAnimationFrame(() => searchTriggerRef.current?.focus())
+  }
   const toggleCollapsed = () => {
     setCollapsed((value) => {
       const next = !value
@@ -115,10 +272,9 @@ export function AppShell({ children }: Readonly<{ children?: ReactNode }>) {
             <img className="brand-logo" src="/porcelain.svg" alt="Porcelain" />
             <img className="brand-wordmark" src="/porcelain-wordmark.svg" alt="Porcelain" />
           </div>
-          <button
+          <IconButton
             className="sidebar-collapse"
-            type="button"
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-expanded={!collapsed}
             onClick={toggleCollapsed}
           >
@@ -127,13 +283,22 @@ export function AppShell({ children }: Readonly<{ children?: ReactNode }>) {
             ) : (
               <SidebarSimpleIcon size={16} color="currentColor" weight="regular" aria-hidden="true" />
             )}
-          </button>
+          </IconButton>
         </div>
 
-        <Link className="search-button" to="/pipelines" title={collapsed ? "Find a pipeline" : undefined}>
+        <Button
+          ref={searchTriggerRef}
+          className="search-button"
+          variant="ghost"
+          title={collapsed ? "Search Porcelain" : undefined}
+          aria-haspopup="dialog"
+          aria-keyshortcuts="Meta+K Control+K"
+          onClick={() => setCommandOpen(true)}
+        >
           <Icon name="search" />
-          <span className="search-label">Find a pipeline</span>
-        </Link>
+          <span className="search-label">Search Porcelain</span>
+          <KeyboardShortcut className="search-shortcut">⌘K</KeyboardShortcut>
+        </Button>
 
         <nav aria-label="Primary navigation" className="app-navigation">
           {navGroups.map((group) => (
@@ -157,16 +322,14 @@ export function AppShell({ children }: Readonly<{ children?: ReactNode }>) {
         </nav>
 
         <div className="sidebar-footer">
-          <ConnectedRuntimeBeam>
-            <Link className="connect-indicator" to="/runtime" title={collapsed ? "Redpanda Connect - Local runtime" : undefined}>
-              <span className="status-dot online" />
-              <span className="connect-copy">
-                <strong>Redpanda Connect</strong>
-                <small>Local runtime</small>
-              </span>
-              <span className="runtime-badge">Live</span>
-            </Link>
-          </ConnectedRuntimeBeam>
+          <Link className={`connect-indicator runtime-${runtimeState}`} to="/runtime" title={collapsed ? runtimeLabel : undefined}>
+            <span className={`status-dot ${runtimeState === "ready" ? "online" : runtimeState === "unknown" ? "" : "offline"}`} />
+            <span className="connect-copy">
+              <strong>{runtimeLabel}</strong>
+              <small>{runtimeDetail}</small>
+            </span>
+            <span className="runtime-badge">{runtimeState === "ready" ? "Ready" : runtimeState === "unknown" ? "Unknown" : "Inspect"}</span>
+          </Link>
 
           <Link activeProps={{ className: "nav-item active" }} inactiveProps={{ className: "nav-item" }} to="/settings" title={collapsed ? "Settings" : undefined}>
             <Icon name="settings" />
@@ -183,7 +346,8 @@ export function AppShell({ children }: Readonly<{ children?: ReactNode }>) {
         </div>
       </aside>
 
-      <main className="main-content">{children}</main>
+      <main className="main-content" id="main-content">{children}</main>
+      <GlobalCommandMenu open={commandOpen} pipelines={context?.pipelines ?? []} onClose={closeCommand} />
     </div>
   )
 }

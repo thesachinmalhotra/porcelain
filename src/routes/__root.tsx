@@ -1,9 +1,11 @@
 import type { ReactNode } from "react"
 import { HeadContent, Outlet, Scripts, createRootRoute } from "@tanstack/react-router"
 import { AppShell } from "../components/app-shell"
+import { getShellContext } from "../features/operations/server"
 import "../styles.css"
 
 export const Route = createRootRoute({
+  loader: () => getShellContext(),
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -20,9 +22,10 @@ export const Route = createRootRoute({
 })
 
 function RootComponent() {
+  const context = Route.useLoaderData()
   return (
     <RootDocument>
-      <AppShell>
+      <AppShell context={context}>
         <Outlet />
       </AppShell>
     </RootDocument>
