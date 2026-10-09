@@ -3320,20 +3320,12 @@ body{min-width:0;overflow-x:hidden}svg{width:var(--ui-icon-default);height:var(-
   background: color-mix(in srgb, var(--p-side) 94%, transparent);
 }
 
-.app-tab-history {
-  display: flex;
-  flex: none;
-  gap: var(--ui-unit);
-}
-
-.app-tab-history .icon-button,
 .app-tab-add.icon-button {
   border-color: transparent;
   color: var(--p-text-faint);
   background: transparent;
 }
 
-.app-tab-history .icon-button:hover,
 .app-tab-add.icon-button:hover {
   color: var(--p-text);
   background: var(--p-control);
@@ -3417,10 +3409,6 @@ body{min-width:0;overflow-x:hidden}svg{width:var(--ui-icon-default);height:var(-
 
   .app-sidebar {
     width: var(--ui-shell-sidebar-collapsed);
-  }
-
-  .app-tab-history {
-    display: none;
   }
 
   .app-tabbar {

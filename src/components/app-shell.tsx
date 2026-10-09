@@ -16,8 +16,6 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/dist/csr/SidebarSimple"
 import { TerminalWindowIcon } from "@phosphor-icons/react/dist/csr/TerminalWindow"
 import { WarningCircleIcon } from "@phosphor-icons/react/dist/csr/WarningCircle"
 import { XIcon } from "@phosphor-icons/react/dist/csr/X"
-import { CaretLeftIcon } from "@phosphor-icons/react/dist/csr/CaretLeft"
-import { CaretRightIcon } from "@phosphor-icons/react/dist/csr/CaretRight"
 import { Button, IconButton, Input, KeyboardShortcut } from "../ui/primitives"
 
 export type IconName =
@@ -127,10 +125,6 @@ function AppTabBar({
   const contextualDestination = staticDestinations.find((item) => item.to === pathname && !pinnedTabs.some((tab) => tab.to === item.to))
 
   return <header className="app-tabbar">
-    <div className="app-tab-history" aria-label="Navigation history">
-      <IconButton label="Go back" onClick={() => window.history.back()}><CaretLeftIcon aria-hidden="true" /></IconButton>
-      <IconButton label="Go forward" onClick={() => window.history.forward()}><CaretRightIcon aria-hidden="true" /></IconButton>
-    </div>
     <nav className="app-tabs" aria-label="Open views">
       {pinnedTabs.map((tab) => {
         const active = pathname === tab.to
