@@ -49,7 +49,7 @@ describe("AppShell", () => {
     expect(overviewLinks.some((link) => link.className.includes("active"))).toBe(true)
     const tabs = screen.getByRole("navigation", { name: "Open views" })
     expect(tabs).toBeTruthy()
-    expect(within(tabs).getByRole("link", { name: "Overview", current: "page" })).toBeTruthy()
+    expect(within(tabs).getByRole("button", { name: "Overview", current: "page" })).toBeTruthy()
   })
 
   it("opens a real global command menu from the shell search control", async () => {
@@ -70,7 +70,32 @@ describe("AppShell", () => {
 
     expect(await screen.findByRole("dialog", { name: "Search Porcelain" })).toBeTruthy()
     expect(screen.getByRole("option", { name: /Order events/ })).toBeTruthy()
-    expect(screen.getByRole("textbox", { name: "Search pipelines and destinations" })).toBe(document.activeElement)
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Search pipelines and destinations" })).toBe(document.activeElement))
+  })
+
+  it("closes only the selected tab while keeping Overview and neighbouring tabs", async () => {
+    const rootRoute = createRootRoute({ component: () => <AppShell context={{ runtime: { reachable: true, ready: true }, pipelines: [{ id: "orders", name: "Order events" }] }} /> })
+    const routes = ["overview", "runtime", "activity", "settings"].map((name) => createRoute({ getParentRoute: () => rootRoute, path: `/${name}` }))
+    const router = createRouter({ routeTree: rootRoute.addChildren(routes), history: createMemoryHistory({ initialEntries: ["/overview"] }) })
+    render(<RouterProvider router={router} />)
+    const tabs = await waitFor(() => screen.getByRole("navigation", { name: "Open views" }))
+    const openView = async (label: string) => {
+      fireEvent.click(within(tabs).getByRole("button", { name: "Open another view" }))
+      fireEvent.click(await screen.findByRole("option", { name: new RegExp(label) }))
+      await waitFor(() => expect(within(tabs).getByRole("button", { name: label, current: "page" })).toBeTruthy())
+    }
+    await openView("Runtime")
+    await openView("Activity")
+    await openView("Settings")
+    fireEvent.click(within(tabs).getByRole("button", { name: "Close Activity" }))
+    await waitFor(() => expect(within(tabs).queryByRole("button", { name: "Activity" })).toBeNull())
+    expect(within(tabs).getByRole("button", { name: "Overview" })).toBeTruthy()
+    expect(within(tabs).getByRole("button", { name: "Runtime" })).toBeTruthy()
+    expect(within(tabs).getByRole("button", { name: "Settings", current: "page" })).toBeTruthy()
+    fireEvent.click(within(tabs).getByRole("button", { name: "Close Settings" }))
+    await waitFor(() => expect(within(tabs).queryByRole("button", { name: "Settings" })).toBeNull())
+    expect(within(tabs).getByRole("button", { name: "Overview" })).toBeTruthy()
+    expect(within(tabs).getByRole("button", { name: "Runtime" })).toBeTruthy()
   })
 
   it("does not claim the runtime is live when Connect is unreachable", async () => {

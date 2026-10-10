@@ -3362,6 +3362,13 @@ body{min-width:0;overflow-x:hidden}svg{width:var(--ui-icon-default);height:var(-
   font-weight: var(--ui-weight-medium);
 }
 
+.app-tab { position: relative; padding: 0; gap: 0; }
+.app-tab-select { display: inline-flex; min-width: 0; height: 100%; flex: 1; align-items: center; gap: calc(var(--ui-unit) * 2); padding: 0 8px 0 12px; border: 0; color: inherit; background: transparent; font: inherit; cursor: pointer; }
+.app-tab-select span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-tab-close.icon-button { width: 24px; height: 24px; min-width: 24px; margin-right: 3px; border: 0; color: var(--p-text-faint); background: transparent; opacity: 0; }
+.app-tab:hover .app-tab-close.icon-button, .app-tab-close.icon-button:focus-visible { opacity: 1; }
+.app-tab-close.icon-button:hover { color: var(--p-text); background: var(--p-control); }
+.app-tab-close.icon-button svg { width: 12px; height: 12px; }
 .app-tab:hover {
   color: var(--p-text-muted);
   background: var(--p-control);

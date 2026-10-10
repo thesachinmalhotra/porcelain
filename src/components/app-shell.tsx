@@ -106,53 +106,27 @@ const staticDestinations: StaticDestination[] = [
   { type: "destination", label: "Settings", description: "Configure this workspace", group: "Workspace", icon: "settings", to: "/settings" },
 ]
 
-function AppTabBar({
-  pathname,
-  pipelines,
-  onOpenCommand,
-}: {
-  pathname: string
-  pipelines: ShellContext["pipelines"]
-  onOpenCommand: () => void
-}) {
-  const pinnedTabs = [
-    { label: "Overview", icon: "grid" as const, to: "/overview" as const },
-    { label: "Pipelines", icon: "pipeline" as const, to: "/pipelines" as const },
-    { label: "Runtime", icon: "pulse" as const, to: "/runtime" as const },
-  ]
-  const pipelineId = pathname.startsWith("/pipelines/") ? decodeURIComponent(pathname.slice("/pipelines/".length)) : null
-  const activePipeline = pipelineId ? pipelines.find((pipeline) => pipeline.id === pipelineId) : undefined
-  const contextualDestination = staticDestinations.find((item) => item.to === pathname && !pinnedTabs.some((tab) => tab.to === item.to))
-
-  return <header className="app-tabbar">
-    <nav className="app-tabs" aria-label="Open views">
-      {pinnedTabs.map((tab) => {
-        const active = pathname === tab.to
-        return <Link className={`app-tab${active ? " active" : ""}`} aria-current={active ? "page" : undefined} key={tab.to} to={tab.to}>
-          <Icon name={tab.icon} /><span>{tab.label}</span>
-        </Link>
-      })}
-      {activePipeline ? <Link className="app-tab active" aria-current="page" to="/pipelines/$pipelineId" params={{ pipelineId: activePipeline.id }}>
-        <Icon name="pipeline" /><span>{activePipeline.name}</span>
-      </Link> : null}
-      {contextualDestination ? <Link className="app-tab active" aria-current="page" to={contextualDestination.to}>
-        <Icon name={contextualDestination.icon} /><span>{contextualDestination.label}</span>
-      </Link> : null}
-      <IconButton className="app-tab-add" label="Open another view" onClick={onOpenCommand}><PlusIcon aria-hidden="true" /></IconButton>
-    </nav>
-  </header>
+function AppTabBar({ onOpenCommand, tabs, activeTab, onSelectTab, onCloseTab }: { onOpenCommand: () => void; tabs: Array<{ id: string; label: string; icon: IconName; to: string; closable: boolean }>; activeTab: string; onSelectTab: (id: string) => void; onCloseTab: (id: string) => void }) {
+  return <header className="app-tabbar"><nav className="app-tabs" aria-label="Open views">
+    {tabs.map((tab) => <div className={`app-tab${activeTab === tab.id ? " active" : ""}`} key={tab.id}>
+      <button className="app-tab-select" type="button" aria-current={activeTab === tab.id ? "page" : undefined} onClick={() => onSelectTab(tab.id)}><Icon name={tab.icon} /><span>{tab.label}</span></button>
+      {tab.closable ? <IconButton className="app-tab-close" label={`Close ${tab.label}`} onClick={(event) => { event.stopPropagation(); onCloseTab(tab.id) }}><XIcon aria-hidden="true" /></IconButton> : null}
+    </div>)}
+    <IconButton className="app-tab-add" label="Open another view" onClick={onOpenCommand}><PlusIcon aria-hidden="true" /></IconButton>
+  </nav></header>
 }
 
 function GlobalCommandMenu({
   open,
   pipelines,
   onClose,
+  onOpenDestination,
 }: {
   open: boolean
   pipelines: ShellContext["pipelines"]
   onClose: () => void
+  onOpenDestination: (path: string) => void
 }) {
-  const navigate = useNavigate()
   const inputRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState("")
   const [activeIndex, setActiveIndex] = useState(0)
@@ -192,10 +166,10 @@ function GlobalCommandMenu({
     if (!item) return
     onClose()
     if (item.type === "pipeline") {
-      void navigate({ to: "/pipelines/$pipelineId", params: { pipelineId: item.pipelineId } })
+      onOpenDestination(`/pipelines/${encodeURIComponent(item.pipelineId)}`)
       return
     }
-    void navigate({ to: item.to })
+    onOpenDestination(item.to)
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -260,9 +234,22 @@ function GlobalCommandMenu({
 
 export function AppShell({ children, context }: Readonly<{ children?: ReactNode; context?: ShellContext }>) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const navigate = useNavigate()
   const searchTriggerRef = useRef<HTMLButtonElement>(null)
   const [collapsed, setCollapsed] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
+  type WorkspaceTab = { id: string; label: string; icon: IconName; to: string; closable: boolean }
+  const [tabs, setTabs] = useState<WorkspaceTab[]>([{ id: "overview", label: "Overview", icon: "grid", to: "/overview", closable: false }])
+  const [activeTab, setActiveTab] = useState("overview")
+  const tabsRef = useRef(tabs)
+  const activeTabRef = useRef(activeTab)
+  const routeBeforeChange = useRef(pathname)
+  const updateTabs = (next: WorkspaceTab[] | ((current: WorkspaceTab[]) => WorkspaceTab[])) => {
+    const resolved = typeof next === "function" ? next(tabsRef.current) : next
+    tabsRef.current = resolved
+    setTabs(resolved)
+  }
+  const updateActiveTab = (id: string) => { activeTabRef.current = id; setActiveTab(id) }
   const runtime = context?.runtime
   const runtimeState = !runtime ? "unknown" : !runtime.reachable ? "unreachable" : runtime.ready ? "ready" : "degraded"
   const runtimeLabel = runtimeState === "ready" ? "Connect ready" : runtimeState === "degraded" ? "Connect degraded" : runtimeState === "unreachable" ? "Runtime unreachable" : "Status unavailable"
@@ -271,6 +258,58 @@ export function AppShell({ children, context }: Readonly<{ children?: ReactNode;
   useEffect(() => {
     setCollapsed(window.localStorage.getItem("porcelain.sidebar.collapsed") === "true")
   }, [])
+
+  const destinationForPath = (path: string) => {
+    const pipelineId = path.startsWith("/pipelines/") ? decodeURIComponent(path.slice("/pipelines/".length)) : null
+    const pipeline = pipelineId ? context?.pipelines.find((item) => item.id === pipelineId) : undefined
+    const destination = staticDestinations.find((item) => item.to === path)
+    return { id: path, label: pipeline?.name ?? destination?.label ?? (path === "/pipelines" ? "Pipelines" : path.split("/").filter(Boolean).at(-1)?.replace(/-/g, " ") ?? "View"), icon: pipeline ? "pipeline" as const : destination?.icon ?? "pipeline" as const, to: path, closable: path !== "/overview" }
+  }
+
+  const openDestinationTab = (path: string) => {
+    const existing = tabsRef.current.find((tab) => tab.to === path)
+    if (existing) { updateActiveTab(existing.id); void navigate({ to: existing.to as never }); return }
+    const destination = destinationForPath(path)
+    updateTabs((current) => [...current, destination])
+    updateActiveTab(destination.id)
+    void navigate({ to: path as never })
+  }
+
+  useEffect(() => {
+    if (routeBeforeChange.current === pathname) return
+    routeBeforeChange.current = pathname
+    const currentTabs = tabsRef.current
+    const existing = currentTabs.find((tab) => tab.to === pathname)
+    if (existing) { updateActiveTab(existing.id); return }
+    const destination = destinationForPath(pathname)
+    if (activeTabRef.current === "overview" && pathname !== "/overview") {
+      updateTabs((current) => current.some((tab) => tab.to === pathname) ? current : [...current, destination])
+      updateActiveTab(destination.id)
+    } else {
+      const id = activeTabRef.current
+      updateTabs((current) => current.map((tab) => tab.id === id ? { ...destination, id, closable: true } : tab))
+    }
+  // Sidebar navigation reuses the active workspace; Overview stays pinned.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname])
+
+  const selectTab = (id: string) => {
+    const tab = tabsRef.current.find((item) => item.id === id)
+    if (!tab) return
+    updateActiveTab(id)
+    void navigate({ to: tab.to as never })
+  }
+
+  const closeTab = (id: string) => {
+    const current = tabsRef.current
+    const index = current.findIndex((tab) => tab.id === id)
+    if (index < 0 || !current[index].closable) return
+    const remaining = current.filter((tab) => tab.id !== id)
+    if (remaining.length === current.length) return
+    const next = current[index - 1] ?? current[index + 1] ?? remaining[0]
+    updateTabs(remaining)
+    if (activeTabRef.current === id && next) { updateActiveTab(next.id); void navigate({ to: next.to as never }) }
+  }
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -379,10 +418,10 @@ export function AppShell({ children, context }: Readonly<{ children?: ReactNode;
       </aside>
 
       <div className="app-content">
-        <AppTabBar pathname={pathname} pipelines={context?.pipelines ?? []} onOpenCommand={() => setCommandOpen(true)} />
+        <AppTabBar tabs={tabs} activeTab={activeTab} onSelectTab={selectTab} onCloseTab={closeTab} onOpenCommand={() => setCommandOpen(true)} />
         <main className="main-content" id="main-content">{children}</main>
       </div>
-      <GlobalCommandMenu open={commandOpen} pipelines={context?.pipelines ?? []} onClose={closeCommand} />
+      <GlobalCommandMenu open={commandOpen} pipelines={context?.pipelines ?? []} onClose={closeCommand} onOpenDestination={openDestinationTab} />
     </div>
   )
 }
