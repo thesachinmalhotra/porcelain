@@ -218,7 +218,11 @@ export function PipelineCanvas({
   const [edges, setEdges, onEdgesChange] = useEdgesState<PipelineEdge>([])
   const [connectionFeedback, setConnectionFeedback] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null)
+  const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => { setIsClient(true) }, [])
   const selectedId = selected ? selectionKey(selected) : null
+  const lastSelectionKeys = useRef(selectedId ?? "")
 
   const nodeActionsRef = useRef({
     onDuplicate,
@@ -284,7 +288,7 @@ export function PipelineCanvas({
   const selectedSelections = selectedNodes.map(selectionFromNode)
   const canDeleteSelection = selectedSelections.some((item) => item.kind === "processor" || item.kind === "buffer")
 
-  if (typeof ResizeObserver === "undefined") {
+  if (!isClient || typeof ResizeObserver === "undefined") {
     return <div className="pipeline-canvas-fallback" aria-label="Pipeline workspace canvas">{nodes.map((node) => <button className={"pipeline-canvas-fallback-node" + (node.id === selectedId ? " selected" : "")} key={node.id} type="button" aria-label={node.data.label} onClick={() => onSelect(node.data.selection)}><span>{node.data.kind}</span><strong>{node.data.component}</strong></button>)}</div>
   }
 
@@ -304,11 +308,13 @@ export function PipelineCanvas({
         onSelectionChange={({ nodes: nextNodes }) => {
           const selections = nextNodes.map((node) => selectionFromNode(node as PipelineNode))
           const nextKeys = selections.map(selectionKey).sort().join("|")
-          const currentKeys = selected ? selectionKey(selected) : ""
-          if (selections.length <= 1 && nextKeys === currentKeys) return
+          if (nextKeys === lastSelectionKeys.current) return
+          lastSelectionKeys.current = nextKeys
+          if (selections.length <= 1) {
+            onSelect(selections[0] ?? null)
+            return
+          }
           onSelectMany(selections)
-          if (selections.length === 1 && nextKeys !== currentKeys) onSelect(selections[0])
-          if (selections.length === 0 && currentKeys !== "") onSelect(null)
         }}
         onNodeContextMenu={(event, node) => {
           event.preventDefault()
