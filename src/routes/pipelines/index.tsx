@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { createFileRoute, useRouter } from "@tanstack/react-router"
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router"
 import { createAuthoredPipelineServer, getPipelineWorkspace } from "../../features/pipelines/server"
 
 export const Route = createFileRoute("/pipelines/")({
@@ -11,6 +11,7 @@ export const Route = createFileRoute("/pipelines/")({
 })
 
 function PipelinesIndex() {
+  const workspace = Route.useLoaderData()
   const router = useRouter()
   const [id, setId] = useState("")
   const [name, setName] = useState("")
@@ -43,17 +44,32 @@ function PipelinesIndex() {
 
       <main className="pipeline-empty-workspace">
         <section className="pipeline-empty-copy" aria-labelledby="create-pipeline-title">
-          <span className="eyebrow">No pipelines</span>
-          <h2 id="create-pipeline-title">Create a native Connect stream.</h2>
+          <span className="eyebrow">{workspace.pipelines.length ? `${workspace.pipelines.length} managed pipeline${workspace.pipelines.length === 1 ? "" : "s"}` : "No pipelines"}</span>
+          <h2 id="create-pipeline-title">{workspace.pipelines.length ? "Your Connect workspace." : "Create a native Connect stream."}</h2>
           <p>
             Porcelain owns the pipeline identity and authoring state. Redpanda Connect owns
             execution, validation, and runtime behaviour.
           </p>
-          <dl className="pipeline-empty-facts">
-            <div><dt>Execution</dt><dd>Redpanda Connect</dd></div>
-            <div><dt>Initial input</dt><dd><code>stdin</code></dd></div>
-            <div><dt>Initial output</dt><dd><code>drop</code></dd></div>
-          </dl>
+          {workspace.pipelines.length > 0 ? (
+            <div className="pipeline-list" aria-label="Pipelines">
+              {workspace.pipelines.map((pipeline) => (
+                <Link className="pipeline-row" key={pipeline.id} to="/pipelines/$pipelineId" params={{ pipelineId: pipeline.id }}>
+                  <span className="pipeline-icon" aria-hidden="true">{pipeline.name.slice(0, 1).toUpperCase()}</span>
+                  <span className="pipeline-main"><strong>{pipeline.name}</strong><code>{pipeline.id}</code></span>
+                  <span className={"status " + (pipeline.runtime.active ? "status-running" : pipeline.runtime.connected ? "status-inactive" : "status-disconnected")}>
+                    <span className="status-dot" />{pipeline.runtime.active ? "Running" : pipeline.runtime.connected ? "Stopped" : "Disconnected"}
+                  </span>
+                  <span className="row-chevron" aria-hidden="true">›</span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <dl className="pipeline-empty-facts">
+              <div><dt>Execution</dt><dd>Redpanda Connect</dd></div>
+              <div><dt>Initial input</dt><dd><code>stdin</code></dd></div>
+              <div><dt>Initial output</dt><dd><code>drop</code></dd></div>
+            </dl>
+          )}
         </section>
 
         <section className="pipeline-create-panel" aria-label="Create pipeline">

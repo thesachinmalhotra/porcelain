@@ -10,7 +10,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "verify": "npm run typecheck && npm test && npm run build",
-    "dev:local": "bash scripts/dev-local.sh"
+    "dev:local": "bash scripts/dev-local.sh",
+    "test:e2e": "playwright test"
   },
   "repository": {
     "type": "git",
@@ -33,6 +34,7 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@tanstack/router-plugin": "1.168.42",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^22.20.3",

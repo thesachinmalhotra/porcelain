@@ -33,3 +33,8 @@ build/
 
 # Superpowers execution scratch
 .superpowers/
+
+
+# Playwright output
+test-results/
+playwright-report/
