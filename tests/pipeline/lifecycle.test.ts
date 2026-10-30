@@ -170,6 +170,47 @@ describe("pipeline publish lifecycle", () => {
   })
 })
 describe("pipeline lifecycle failure semantics", () => {
+  it("removes the newly created Connect stream when durable persistence fails", async () => {
+    const { calls, store, client } = createFakes()
+    store.createWithRevision = async () => {
+      calls.push("store.createWithRevision")
+      throw new Error("disk write failed")
+    }
+    const lifecycle = createPipelineLifecycle({ store, client })
+
+    await expect(lifecycle.createPipeline(createInput)).rejects.toThrow("disk write failed")
+    expect(calls).toEqual([
+      "connect.create:orders",
+      "store.createWithRevision",
+      "connect.delete:orders",
+    ])
+    await expect(store.get("orders")).resolves.toBeNull()
+  })
+
+  it("preserves both persistence and cleanup errors when compensation fails", async () => {
+    const { calls, store, client } = createFakes()
+    const persistenceError = new Error("disk write failed")
+    const cleanupError = new Error("Connect unavailable")
+    store.createWithRevision = async () => {
+      calls.push("store.createWithRevision")
+      throw persistenceError
+    }
+    client.deleteStream = async () => {
+      calls.push("connect.delete:orders")
+      throw cleanupError
+    }
+    const lifecycle = createPipelineLifecycle({ store, client })
+
+    const result = lifecycle.createPipeline(createInput)
+    await expect(result).rejects.toBeInstanceOf(AggregateError)
+    await expect(result).rejects.toMatchObject({
+      message: expect.stringContaining("could not be removed"),
+      errors: [persistenceError, cleanupError],
+      cause: persistenceError,
+    })
+    expect(calls).toEqual(["connect.create:orders", "store.createWithRevision", "connect.delete:orders"])
+  })
+
   it("does not create a revision when Connect create fails", async () => {
     const { calls, store, client } = createFakes()
     client.createStream = async () => { calls.push("connect.create:orders"); throw new Error("create failed") }

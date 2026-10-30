@@ -39,7 +39,23 @@ export function createPipelineLifecycle({ store, client, activity }: PipelineLif
     async createPipeline(definition: PipelineCreate): Promise<PipelineDefinition> {
       const connectStreamId = definition.id
       await client.createStream(connectStreamId, definition.desiredConfig)
-      const pipeline = await store.createWithRevision(definition)
+      let pipeline: PipelineDefinition
+      try {
+        pipeline = await store.createWithRevision(definition)
+      } catch (persistenceError) {
+        try {
+          await client.deleteStream(connectStreamId)
+        } catch (cleanupError) {
+          if (!(cleanupError instanceof Error && "status" in cleanupError && cleanupError.status === 404)) {
+            throw new AggregateError(
+              [persistenceError, cleanupError],
+              "Pipeline persistence failed and the newly created Connect stream could not be removed: " + connectStreamId,
+              { cause: persistenceError },
+            )
+          }
+        }
+        throw persistenceError
+      }
       await activity?.append({
         type: "pipeline.created",
         pipelineId: pipeline.id,

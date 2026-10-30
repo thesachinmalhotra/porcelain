@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { ConnectRequestError, createConnectClient } from "../../src/runtime/connect/client"
@@ -33,6 +33,26 @@ async function createStore(id: string) {
 }
 
 run("SAC-46 real Connect publish", () => {
+  it("removes a real Connect stream when durable pipeline persistence fails", async () => {
+    const id = "sac-46-persist-fail-" + Date.now(); streamIds.push(id)
+    const dir = await mkdtemp(join(tmpdir(), "porcelain-persist-failure-")); tempDirs.push(dir)
+    const blocker = join(dir, "not-a-directory")
+    await writeFile(blocker, "file prevents creation of the store directory")
+    const store = createPipelineStore(join(blocker, "pipelines.json"))
+    const client = createConnectClient({ baseUrl })
+    const lifecycle = createPipelineLifecycle({ store, client })
+
+    await expect(lifecycle.createPipeline({
+      id,
+      name: "Persistence failure proof",
+      metadata: { source: "sac-46-failure-recovery" },
+      desiredConfig: connectConfig('root = "persistence-failure"'),
+    })).rejects.toMatchObject({ code: "ENOTDIR" })
+
+    await expect(client.getStream(id)).rejects.toMatchObject({ status: 404 })
+    await expect(store.get(id)).rejects.toMatchObject({ code: "ENOTDIR" })
+  }, 30000)
+
   it("creates a missing stream through POST and projects runtime stats", async () => {
     const id = "sac-46-create-" + Date.now(); streamIds.push(id)
     const store = await createStore(id); const client = createConnectClient({ baseUrl })
