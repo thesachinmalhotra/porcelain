@@ -71,7 +71,7 @@ test("chaos: builds a canvas pipeline, enriches events, routes to multiple desti
     await page.locator(".workspace-view-switch").getByRole("tab", { name: "Source" }).click()
     const canvasSource = await page.getByRole("textbox", { name: "Full native Connect configuration" }).inputValue()
     expect(canvasSource).not.toMatch(/^buffer:/m)
-    await page.locator(".workspace-view-switch").getByRole("tab", { name: "Graph" }).click()
+    await page.locator(".workspace-view-switch").getByRole("tab", { name: "Visual" }).click()
 
     // Arrange the authored nodes on the canvas; the canvas owns a linear processor
     // chain, while the native Connect source below carries branching/fan-out semantics.

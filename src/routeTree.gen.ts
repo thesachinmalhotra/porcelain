@@ -14,6 +14,7 @@ import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as ComponentsRouteImport } from './routes/components'
 import { Route as OverviewRouteImport } from './routes/overview'
 import { Route as PipelinesRouteImport } from './routes/pipelines'
+import { Route as ResourcesRouteImport } from './routes/resources'
 import { Route as RuntimeRouteImport } from './routes/runtime'
 import { Route as SchemasRouteImport } from './routes/schemas'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -44,6 +45,11 @@ const OverviewRoute = OverviewRouteImport.update({
 const PipelinesRoute = PipelinesRouteImport.update({
   id: '/pipelines',
   path: '/pipelines',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResourcesRoute = ResourcesRouteImport.update({
+  id: '/resources',
+  path: '/resources',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RuntimeRoute = RuntimeRouteImport.update({
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/components': typeof ComponentsRoute
   '/overview': typeof OverviewRoute
   '/pipelines': typeof PipelinesRouteWithChildren
+  '/resources': typeof ResourcesRoute
   '/runtime': typeof RuntimeRoute
   '/schemas': typeof SchemasRoute
   '/settings': typeof SettingsRoute
@@ -95,6 +102,7 @@ export interface FileRoutesByTo {
   '/activity': typeof ActivityRoute
   '/components': typeof ComponentsRoute
   '/overview': typeof OverviewRoute
+  '/resources': typeof ResourcesRoute
   '/runtime': typeof RuntimeRoute
   '/schemas': typeof SchemasRoute
   '/settings': typeof SettingsRoute
@@ -109,6 +117,7 @@ export interface FileRoutesById {
   '/components': typeof ComponentsRoute
   '/overview': typeof OverviewRoute
   '/pipelines': typeof PipelinesRouteWithChildren
+  '/resources': typeof ResourcesRoute
   '/runtime': typeof RuntimeRoute
   '/schemas': typeof SchemasRoute
   '/settings': typeof SettingsRoute
@@ -124,6 +133,7 @@ export interface FileRouteTypes {
     | '/components'
     | '/overview'
     | '/pipelines'
+    | '/resources'
     | '/runtime'
     | '/schemas'
     | '/settings'
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/components'
     | '/overview'
+    | '/resources'
     | '/runtime'
     | '/schemas'
     | '/settings'
@@ -149,6 +160,7 @@ export interface FileRouteTypes {
     | '/components'
     | '/overview'
     | '/pipelines'
+    | '/resources'
     | '/runtime'
     | '/schemas'
     | '/settings'
@@ -163,6 +175,7 @@ export interface RootRouteChildren {
   ComponentsRoute: typeof ComponentsRoute
   OverviewRoute: typeof OverviewRoute
   PipelinesRoute: typeof PipelinesRouteWithChildren
+  ResourcesRoute: typeof ResourcesRoute
   RuntimeRoute: typeof RuntimeRoute
   SchemasRoute: typeof SchemasRoute
   SettingsRoute: typeof SettingsRoute
@@ -204,6 +217,13 @@ declare module '@tanstack/react-router' {
       path: '/pipelines'
       fullPath: '/pipelines'
       preLoaderRoute: typeof PipelinesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/resources': {
+      id: '/resources'
+      path: '/resources'
+      fullPath: '/resources'
+      preLoaderRoute: typeof ResourcesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/runtime': {
@@ -271,6 +291,7 @@ const rootRouteChildren: RootRouteChildren = {
   ComponentsRoute: ComponentsRoute,
   OverviewRoute: OverviewRoute,
   PipelinesRoute: PipelinesRouteWithChildren,
+  ResourcesRoute: ResourcesRoute,
   RuntimeRoute: RuntimeRoute,
   SchemasRoute: SchemasRoute,
   SettingsRoute: SettingsRoute,

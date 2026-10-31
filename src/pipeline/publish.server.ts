@@ -15,6 +15,18 @@ type Client = {
   getStreamStats(id: string): Promise<ConnectStreamStats>
 }
 
+export type PipelineConfigurationComparison = { status: "in_sync" | "drifted" | "unknown"; differences: string[] }
+
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical)
+  if (typeof value === "object" && value !== null) return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical((value as Record<string, unknown>)[key])]))
+  return value
+}
+
+export function comparePipelineConfigurations(desired: Record<string, unknown>, actual: Record<string, unknown>): PipelineConfigurationComparison {
+  const same = JSON.stringify(canonical(desired)) === JSON.stringify(canonical(actual))
+  return { status: same ? "in_sync" : "drifted", differences: same ? [] : ["$"] }
+}
 type Lifecycle = {
   publishPipeline(id: string, update: PipelineUpdate): Promise<{ pipeline: PipelineDefinition; connectStreamId: string; operation: "created" | "updated" }>
 }
@@ -73,6 +85,8 @@ export async function publishPipelineDraft({
     // The Connect mutation already succeeded. Runtime projection is best-effort and must not roll back publish semantics.
   }
 
+  const configuration = stream ? comparePipelineConfigurations(config, stream.config) : { status: "unknown" as const, differences: [] }
+
   let stats: ConnectStreamStats | null = null
   if (stream) {
     try {
@@ -85,6 +99,7 @@ export async function publishPipelineDraft({
   return {
     pipeline,
     restartRequired: operation === "updated",
+    configuration,
     runtime: stream
       ? {
           connected: true,

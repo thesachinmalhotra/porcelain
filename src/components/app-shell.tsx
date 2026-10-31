@@ -32,7 +32,7 @@ type StaticDestination = {
   description: string
   group: "Operate" | "Discover" | "Workspace"
   icon: IconName
-  to: "/overview" | "/pipelines" | "/runtime" | "/activity" | "/streams" | "/components" | "/schemas" | "/settings"
+  to: "/overview" | "/pipelines" | "/runtime" | "/activity" | "/streams" | "/components" | "/schemas" | "/settings" | "/resources"
 }
 
 type PipelineDestination = {
@@ -90,6 +90,7 @@ const navGroups = [
     label: "Discover",
     items: [
       { label: "Components", icon: "layers" as const, to: "/components" },
+      { label: "Shared resources", icon: "database" as const, to: "/resources" },
       { label: "Event schemas", icon: "database" as const, to: "/schemas" },
     ],
   },
@@ -102,6 +103,7 @@ const staticDestinations: StaticDestination[] = [
   { type: "destination", label: "Activity", description: "Review operational events", group: "Operate", icon: "activity", to: "/activity" },
   { type: "destination", label: "Connect streams", description: "Inspect runtime-owned streams", group: "Operate", icon: "database", to: "/streams" },
   { type: "destination", label: "Components", description: "Browse installed Connect capabilities", group: "Discover", icon: "layers", to: "/components" },
+  { type: "destination", label: "Shared resources", description: "Author and publish shared Connect resources", group: "Discover", icon: "database", to: "/resources" },
   { type: "destination", label: "Event schemas", description: "Review observed component types", group: "Discover", icon: "database", to: "/schemas" },
   { type: "destination", label: "Settings", description: "Configure this workspace", group: "Workspace", icon: "settings", to: "/settings" },
 ]

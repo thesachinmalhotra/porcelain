@@ -75,6 +75,8 @@ describe("pipeline authoring mutations", () => {
   it("supports optional buffer creation and removal", () => {
     const withoutBuffer = setPipelineAuthoringBuffer(base, undefined)
     expect(withoutBuffer.buffer).toBeUndefined()
+    expect(authoringToConnectConfig(withoutBuffer)).not.toHaveProperty("buffer")
+    expect(withoutBuffer.connectConfig).not.toHaveProperty("buffer")
 
     const restored = setPipelineAuthoringBuffer(withoutBuffer, { memory: { limit: 50 } })
     expect(restored.buffer).toEqual({ memory: { limit: 50 } })

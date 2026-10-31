@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { publishPipelineDraft, validatePipelineDraft } from "../../src/pipeline/publish.server"
+import { comparePipelineConfigurations, publishPipelineDraft, validatePipelineDraft } from "../../src/pipeline/publish.server"
 
 const mocks = vi.hoisted(() => ({
   lintConnectConfig: vi.fn().mockResolvedValue({ valid: true, stdout: "", stderr: "" }),
@@ -16,6 +16,13 @@ const authoring = {
   output: { drop: {} },
 }
 
+describe("pipeline configuration comparison", () => {
+  it("ignores object key order and preserves array order", () => {
+    expect(comparePipelineConfigurations({ a: 1, nested: { b: 2, c: 3 } }, { nested: { c: 3, b: 2 }, a: 1 }).status).toBe("in_sync")
+    expect(comparePipelineConfigurations({ items: [1, 2] }, { items: [2, 1] }).status).toBe("drifted")
+    expect(comparePipelineConfigurations({ input: {} }, { input: {}, extra: true }).status).toBe("drifted")
+  })
+})
 describe("pipeline publish", () => {
   it("uses Connect lint before publish and detects an existing stream", async () => {
     const client = {
@@ -51,6 +58,7 @@ describe("pipeline publish", () => {
     expect(result.restartRequired).toBe(true)
     expect(result.runtime.active).toBe(true)
     expect(result.runtime.stats).toEqual({ output: { sent: 2 } })
+    expect(result.configuration.status).toBe("drifted")
   })
 
   it("does not fail a successful publish when stats are temporarily unavailable", async () => {
@@ -69,6 +77,7 @@ describe("pipeline publish", () => {
     await expect(publishPipelineDraft({ lifecycle, client, authoring })).resolves.toMatchObject({
       restartRequired: false,
       runtime: { connected: true, active: true, stats: null },
+      configuration: { status: "drifted" },
     })
   })
 })

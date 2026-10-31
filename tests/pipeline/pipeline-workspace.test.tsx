@@ -57,6 +57,14 @@ describe("PipelineWorkspace", () => {
     await waitFor(() => expect(mocks.runtime).toHaveBeenCalled())
   })
 
+  it("switches to the native topology projection without leaving the workspace", () => {
+    renderWorkspace()
+    fireEvent.click(screen.getByRole("tab", { name: "Topology" }))
+    expect(screen.getByLabelText("Native Connect topology")).toBeTruthy()
+    expect(document.querySelectorAll(".native-topology-node")).toHaveLength(3)
+    expect(screen.getByRole("tab", { name: "Source" })).toBeTruthy()
+  })
+
   it("edits and discards a processor draft", () => {
     renderWorkspace()
     fireEvent.click(screen.getByRole("button", { name: "normalize" }))

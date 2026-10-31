@@ -12,6 +12,7 @@ import { createConnectComponentConfig, getConnectComponentSchema, normalizeConne
 import type { ConnectComponentCapability, ConnectComponentKind } from "../../runtime/connect/capabilities.server"
 import type { ConnectComponentSchema } from "../../runtime/connect/schema"
 import { ComponentLibrary, PipelineCanvas, type WorkspaceComponentKind, type WorkspaceSelection } from "./pipeline-canvas"
+import { NativeTopology, type NativeTopologySelection } from "./native-topology"
 import { Button, IconButton } from "../../ui/primitives"
 import { NativeInspector } from "./native-inspector"
 import { executeMappingServer } from "./mapping-server"
@@ -142,7 +143,8 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
   const [mappingError, setMappingError] = useState<string | null>(null)
   const [mappingRunning, setMappingRunning] = useState(false)
   const [workspaceContext, setWorkspaceContext] = useState<DeepWorkContext | null>(null)
-  const [workspaceView, setWorkspaceView] = useState<"graph" | "source">("graph")
+  const [workspaceView, setWorkspaceView] = useState<"graph" | "topology" | "source">("graph")
+  const [nativeSelection, setNativeSelection] = useState<NativeTopologySelection | null>(null)
   const initialPipelineId = pipelineId ?? pipelines[0]?.id ?? ""
   const [libraryOpen, setLibraryOpen] = useState(() => readWorkspacePanelState(initialPipelineId).library)
   const [inspectorOpen, setInspectorOpen] = useState(() => readWorkspacePanelState(initialPipelineId).inspector)
@@ -154,6 +156,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
     setInspectorOpen(state.inspector)
     setSelectedStep(null)
     setSelectedSteps([])
+    setNativeSelection(null)
     setWorkspaceContext(null)
   }, [selectedId, pipelines, initialPipelineId])
   const selected = pipelines.find((pipeline) => pipeline.id === selectedId) ?? pipelines[0]
@@ -571,10 +574,11 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
       <ComponentLibrary open={libraryOpen} components={components} query={libraryQuery} onQueryChange={setLibraryQuery} onOpenCommand={openCommand} onChoose={(component, kind) => void insertComponent({ component, kind })} />
       <main className="workspace-canvas-column">
         <div className="workspace-canvas-toolbar">
-          <div><span className="eyebrow">{workspaceContext ? "Deep work" : "Workspace"}</span><strong>{workspaceContext ? workspaceContext[0].toUpperCase() + workspaceContext.slice(1) : workspaceView === "source" ? "Native configuration" : "Stream topology"}</strong></div>
+          <div><span className="eyebrow">{workspaceContext ? "Deep work" : "Workspace"}</span><strong>{workspaceContext ? workspaceContext[0].toUpperCase() + workspaceContext.slice(1) : workspaceView === "source" ? "Native configuration" : workspaceView === "topology" ? "Native topology" : "Visual editor"}</strong></div>
           {!workspaceContext && <div className="workspace-canvas-toolbar-actions">
             <div className="workspace-view-switch" role="tablist" aria-label="Workspace view">
-              <button type="button" role="tab" aria-selected={workspaceView === "graph"} className={workspaceView === "graph" ? "active" : ""} onClick={() => setWorkspaceView("graph")}>Graph</button>
+              <button type="button" role="tab" aria-selected={workspaceView === "graph"} className={workspaceView === "graph" ? "active" : ""} onClick={() => setWorkspaceView("graph")}>Visual</button>
+              <button type="button" role="tab" aria-selected={workspaceView === "topology"} className={workspaceView === "topology" ? "active" : ""} onClick={() => setWorkspaceView("topology")}>Topology</button>
               <button type="button" role="tab" aria-selected={workspaceView === "source"} className={workspaceView === "source" ? "active" : ""} onClick={() => { setDraftText(stringify(authoringToConnectConfig(authoring), { lineWidth: 120 })); setWorkspaceView("source") }}>Source</button>
             </div>
             <button type="button" className="workspace-toolbar-button" onClick={() => runCommand("toggle-buffer")}>{authoring.buffer ? "Remove buffer" : "Add buffer"}</button>
@@ -607,7 +611,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
             <header><div><span className="eyebrow">Redpanda Connect</span><strong>Full native stream configuration</strong><small>Use the full Connect configuration model here: branches, switches, brokers, fan-out, nested processors and every stream-level option.</small></div><div><button className="button button-secondary" type="button" onClick={() => setDraftText(stringify(authoringToConnectConfig(authoring), { lineWidth: 120 }))}>Reset editor</button><button className="button button-primary" type="button" onClick={applyRaw}>Apply source</button></div></header>
             <textarea className="config-editor config-editor-tall" aria-label="Full native Connect configuration" value={draftText || stringify(authoringToConnectConfig(authoring), { lineWidth: 120 })} onChange={(event) => setDraftText(event.target.value)} spellCheck={false} />
             <footer><span>Native YAML ? validated by the installed Connect binary</span><button className="button button-secondary" type="button" onClick={() => void validateWithConnect()}>Validate with Connect</button></footer>
-          </section> : <>
+          </section> : workspaceView === "topology" ? <NativeTopology config={authoringToConnectConfig(authoring)} onSelect={(node) => { setNativeSelection(node); setInspectorOpen(Boolean(node)); setInspectorSurface("configuration") }} /> : <>
             <PipelineCanvas
               key={selected.id}
               pipelineId={selected.id}
@@ -659,7 +663,14 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
           {(["configuration", "runtime", "diagnostics"] as const).map((mode) => <button key={mode} type="button" role="tab" aria-selected={inspectorSurface === mode} className={inspectorSurface === mode ? "active" : ""} onClick={() => setInspectorSurface(mode)}>{mode === "configuration" ? "Configure" : mode[0].toUpperCase() + mode.slice(1)}</button>)}
         </div>
 
-        {selectedSteps.length > 1 ? <div className="workspace-inspector-multiselect">
+        {workspaceView === "topology" && nativeSelection ? <div className="workspace-inspector-body native-topology-inspector">
+          <div className="native-topology-inspector-summary"><span className="eyebrow">Native Connect node</span><h3>{nativeSelection.label}</h3><code>{nativeSelection.component}</code><small>{nativeSelection.role}</small></div>
+          <div className="native-topology-inspector-path"><span>Configuration path</span><code>{nativeSelection.path}</code></div>
+          <div className="section-intro"><strong>Actual component configuration</strong><span>From the active native draft</span></div>
+          <pre className="native-topology-inspector-json">{JSON.stringify(nativeSelection.config, null, 2)}</pre>
+          <div className="native-topology-inspector-note">This node is inspected directly from the native Connect document. Edit advanced or nested structures in Source; visual edits will be enabled only where they can safely preserve the complete native configuration.</div>
+          <button className="button button-secondary" type="button" onClick={() => { setDraftText(stringify(authoringToConnectConfig(authoring), { lineWidth: 120 })); setWorkspaceView("source") }}>Open native source</button>
+        </div> : selectedSteps.length > 1 ? <div className="workspace-inspector-multiselect">
           <div className="multi-select-summary"><strong>{selectedSteps.length} nodes selected</strong><span>Structural actions apply to the whole selection. Configuration remains per node.</span></div>
           <button className="button button-secondary" type="button" onClick={() => duplicateSelections(selectedSteps)}>Duplicate</button>
           <button className="button button-danger-ghost" type="button" onClick={() => deleteSelections(selectedSteps)}>Delete</button>

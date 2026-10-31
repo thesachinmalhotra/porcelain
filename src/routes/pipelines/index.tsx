@@ -22,7 +22,7 @@ function PipelinesIndex() {
     event.preventDefault()
     const pipelineId = id.trim()
     const pipelineName = name.trim()
-    if (!/^[a-z0-9][a-z0-9-_]*$/.test(pipelineId)) { setError("Pipeline ID must use lowercase letters, numbers, hyphens, or underscores"); return }
+    if (!/^[a-z0-9][a-z0-9_-]*$/.test(pipelineId)) { setError("Pipeline ID must use lowercase letters, numbers, hyphens, or underscores"); return }
     if (!pipelineName) { setError("Pipeline name is required"); return }
     setSaving(true); setError(null)
     try {

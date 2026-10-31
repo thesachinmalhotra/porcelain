@@ -3445,3 +3445,95 @@ body{min-width:0;overflow-x:hidden}svg{width:var(--ui-icon-default);height:var(-
 .workspace-native-source textarea:focus{border-color:rgb(255 255 255 / 22%);box-shadow:0 0 0 2px rgb(255 255 255 / 3%)}
 .workspace-native-source>footer{color:#575753;font:9px var(--font-mono)}
 .workspace-native-source .button{height:28px}
+
+/* Shared Connect resources */
+.resource-workbench{display:grid;grid-template-columns:minmax(220px,280px) minmax(0,1fr);gap:14px;min-height:560px}
+.resource-list,.resource-editor{min-width:0;padding:0;overflow:hidden}
+.resource-list>header,.resource-editor>header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 17px;border-bottom:1px solid var(--p-line)}
+.resource-list>header strong,.resource-editor>header strong{font-size:13px;font-weight:600}
+.resource-list>header span{color:var(--p-text-faint);font:11px var(--font-mono)}
+.resource-list-item{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border:0;border-bottom:1px solid var(--p-line);color:var(--p-text);background:transparent;text-align:left;cursor:pointer}
+.resource-list-item:hover,.resource-list-item.active{background:var(--p-control)}
+.resource-list-item>span{display:flex;min-width:0;flex-direction:column;gap:4px}
+.resource-list-item strong{overflow:hidden;font-size:12px;font-weight:550;text-overflow:ellipsis}
+.resource-list-item small{color:var(--p-text-faint);font:10px var(--font-mono)}
+.resource-list-item i{flex:none;color:var(--p-text-faint);font:9px var(--font-mono);font-style:normal}
+.resource-list-item i.published{color:var(--p-success,#65a884)}
+.resource-list>footer,.resource-editor>footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border-top:1px solid var(--p-line);color:var(--p-text-faint);font-size:10px}
+.resource-empty{padding:18px;color:var(--p-text-faint);font-size:12px}
+.resource-editor>header>div{display:flex;flex-direction:column;gap:4px}
+.resource-editor>header .eyebrow{color:var(--p-text-faint);font:9px var(--font-mono);text-transform:uppercase}
+.resource-fields{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:12px;padding:16px}
+.resource-fields label{display:flex;min-width:0;flex-direction:column;gap:6px}
+.resource-fields label>span{color:var(--p-text-muted);font-size:10px}
+.resource-fields input,.resource-fields select{width:100%;height:34px;padding:0 9px;border:1px solid var(--p-line);border-radius:5px;color:var(--p-text);background:var(--p-bg);font:11px var(--font-mono)}
+.resource-source-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px 10px}
+.resource-source-head strong{font-size:11px;font-weight:600}
+.resource-source-head small{color:var(--p-text-faint);font-size:10px}
+.resource-editor textarea{display:block;width:calc(100% - 32px);min-height:330px;margin:0 16px;padding:14px;resize:vertical;border:1px solid var(--p-line);border-radius:6px;color:var(--p-text);background:var(--p-bg);font:11px/1.65 var(--font-mono);tab-size:2;outline:none}
+.resource-editor textarea:focus{border-color:var(--p-text-faint)}
+.resource-editor>footer>div{display:flex;gap:7px}
+.resource-publish-callout{margin:0 16px 14px;padding:10px 12px;border:1px solid var(--p-line);border-radius:5px;color:var(--p-text-muted);font-size:10px}
+@media(max-width:850px){.resource-workbench{grid-template-columns:1fr}.resource-fields{grid-template-columns:1fr}.resource-editor>footer{align-items:flex-start;flex-direction:column}}
+
+/* Native Connect topology ? structural projection inspired by Console's visual editor. */
+.native-topology {
+  position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  width: 100%; height: 100%; overflow: hidden; background: var(--color-void);
+}
+.native-topology > .react-flow { flex: 1; min-height: 0; }
+.native-topology-banner {
+  position: absolute; z-index: 5; top: 12px; left: 14px; right: 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  color: var(--color-fog); font-size: 10px; pointer-events: none;
+}
+.native-topology-banner strong { color: var(--color-paper); font-weight: 600; }
+.native-topology-banner > span:last-child { font: 9px "DM Mono", monospace; }
+.native-topology-note {
+  position: absolute; z-index: 5; bottom: 12px; left: 58px; right: 14px;
+  color: var(--color-ash); font-size: 9px; line-height: 1.45; pointer-events: none;
+}
+.native-topology-node {
+  position: relative; display: flex; align-items: flex-start; gap: 10px;
+  width: 190px; min-height: 78px; padding: 11px;
+  border: 1px solid var(--color-smoke); border-radius: var(--radius-lg);
+  color: var(--color-mist); background: var(--color-obsidian);
+  box-shadow: 0 5px 18px rgb(0 0 0 / 14%);
+}
+.native-topology-node.is-structural { border-color: color-mix(in srgb, var(--color-mist) 45%, var(--color-smoke)); background: #191a1b; }
+.native-topology-node.is-native { border-style: dashed; }
+.native-topology-icon {
+  display: grid; place-items: center; flex: none; width: 27px; height: 27px;
+  border: 1px solid var(--color-graphite); border-radius: 6px;
+  color: var(--color-paper); background: var(--color-slate);
+}
+.native-topology-icon svg { width: 13px; height: 13px; }
+.native-topology-copy { display: flex; flex-direction: column; min-width: 0; gap: 3px; }
+.native-topology-copy > span { color: var(--color-ash); font: 8px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .06em; }
+.native-topology-copy strong { overflow: hidden; color: var(--color-paper); font-size: 11px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.native-topology-copy code { overflow: hidden; color: var(--color-fog); font: 9px "DM Mono", monospace; text-overflow: ellipsis; white-space: nowrap; }
+.native-topology-copy small { color: var(--color-ash); font-size: 9px; }
+.native-topology-node .react-flow__handle { width: 6px; height: 6px; border: 1px solid var(--color-ash); background: var(--color-void); }
+.native-topology .react-flow__edge-text { fill: var(--color-fog); font-size: 9px; }
+.native-topology .react-flow__controls { overflow: hidden; border: 1px solid var(--color-smoke); border-radius: 7px; box-shadow: none; }
+.native-topology .react-flow__controls-button { border-bottom-color: var(--color-smoke); background: var(--color-carbon); fill: var(--color-mist); }
+.native-topology .react-flow__controls-button:hover { background: var(--color-slate); }
+@media (max-width: 900px) {
+  .native-topology-node { width: 164px; padding: 9px; }
+  .native-topology-note { left: 14px; bottom: 48px; }
+}
+.native-topology-fallback { display: flex; align-items: center; gap: 18px; min-width: 0; overflow: auto; padding: 76px 24px 56px; }
+.native-topology-fallback .native-topology-node { flex: 0 0 190px; }
+.native-topology-fallback .native-topology-node:not(:last-child)::after { content: ""; position: absolute; left: 100%; top: 50%; width: 18px; height: 1px; background: var(--color-ash); }
+
+.native-topology-inspector { gap: 14px; }
+.native-topology-inspector-summary { display: flex; flex-direction: column; gap: 6px; padding: 2px 0 14px; border-bottom: 1px solid var(--color-smoke); }
+.native-topology-inspector-summary h3 { margin: 0; color: var(--color-paper); font-size: 16px; font-weight: 600; }
+.native-topology-inspector-summary code, .native-topology-inspector-path code { color: var(--color-fog); font: 10px "DM Mono", monospace; overflow-wrap: anywhere; }
+.native-topology-inspector-summary small { color: var(--color-ash); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.native-topology-inspector-path { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--color-smoke); border-radius: 6px; background: var(--color-carbon); }
+.native-topology-inspector-path span { color: var(--color-ash); font-size: 9px; text-transform: uppercase; letter-spacing: .07em; }
+.native-topology-inspector-json { max-height: 42vh; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--color-smoke); border-radius: 6px; background: var(--color-void); color: var(--color-fog); font: 10px/1.65 "DM Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.native-topology-inspector-note { color: var(--color-ash); font-size: 10px; line-height: 1.6; }
+.native-topology .react-flow__minimap { overflow: hidden; border: 1px solid var(--color-smoke); border-radius: 7px; background: var(--color-carbon); }
+.native-topology .react-flow__minimap-mask { fill: rgba(10, 11, 12, .72); }
