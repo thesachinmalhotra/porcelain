@@ -31,7 +31,7 @@ test("creates, validates, publishes and processes a real Connect event", async (
 
     await expect(page.locator(".react-flow__node")).toHaveCount(2, { timeout: 10_000 })
     await page.locator(".react-flow__node").filter({ hasText: "stdin" }).click()
-    await page.getByRole("tab", { name: "Source" }).click()
+    await page.locator(".workspace-inspector-tabs").getByRole("tab", { name: "Source" }).click()
 
     const config = [
       "input:",

@@ -9,7 +9,7 @@ import { getPipelineRuntime } from "./runtime-server"
 import { connectPipelineRuntimeSummary } from "../../runtime/connect/stats"
 import { Icon } from "../../components/app-shell"
 import { createConnectComponentConfig, getConnectComponentSchema, normalizeConnectConfig } from "../components/server"
-import type { ConnectComponentCapability } from "../../runtime/connect/capabilities.server"
+import type { ConnectComponentCapability, ConnectComponentKind } from "../../runtime/connect/capabilities.server"
 import type { ConnectComponentSchema } from "../../runtime/connect/schema"
 import { ComponentLibrary, PipelineCanvas, type WorkspaceComponentKind, type WorkspaceSelection } from "./pipeline-canvas"
 import { Button, IconButton } from "../../ui/primitives"
@@ -21,7 +21,7 @@ import { DeepWorkSurface, type DeepWorkContext } from "./deep-work"
 
 type Props = { connectReachable: boolean; connectReady: boolean; pipelines: PipelineWorkspacePipeline[]; components?: ConnectComponentCapability[]; pipelineId?: string }
 type Step = { id: string; label: string; kind: WorkspaceSelection["kind"]; config: JsonObject }
-type CommandOption = { component: ConnectComponentCapability; kind: Exclude<WorkspaceComponentKind, "buffer"> }
+type CommandOption = { component: ConnectComponentCapability; kind: ConnectComponentKind }
 
 const isObject = (value: unknown): value is JsonObject => typeof value === "object" && value !== null && !Array.isArray(value)
 const selectedKey = (selection: WorkspaceSelection) => selection.kind === "processor" ? `processor-${selection.index}` : selection.kind
@@ -142,6 +142,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
   const [mappingError, setMappingError] = useState<string | null>(null)
   const [mappingRunning, setMappingRunning] = useState(false)
   const [workspaceContext, setWorkspaceContext] = useState<DeepWorkContext | null>(null)
+  const [workspaceView, setWorkspaceView] = useState<"graph" | "source">("graph")
   const initialPipelineId = pipelineId ?? pipelines[0]?.id ?? ""
   const [libraryOpen, setLibraryOpen] = useState(() => readWorkspacePanelState(initialPipelineId).library)
   const [inspectorOpen, setInspectorOpen] = useState(() => readWorkspacePanelState(initialPipelineId).inspector)
@@ -218,7 +219,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
 
   const commandOptions = useMemo<CommandOption[]>(() => {
     const normalized = commandQuery.trim().toLowerCase()
-    const kinds: Array<Exclude<WorkspaceComponentKind, "buffer">> = ["input", "processor", "output"]
+    const kinds: ConnectComponentKind[] = ["input", "buffer", "processor", "output"]
     return components.flatMap((component) => kinds.filter((kind) => component.kinds.includes(kind)).map((kind) => ({ component, kind })))
       .filter((option) => !normalized || option.component.name.toLowerCase().includes(normalized)).slice(0, 80)
   }, [commandQuery, components])
@@ -372,14 +373,29 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
   const insertComponent = async (option: CommandOption) => {
     setCommandOpen(false); setError(null)
     try {
-      const config = await createConnectComponentConfig({ data: { kind: option.kind, name: option.component.name } })
-      if (option.kind === "processor") {
-        const index = activeSelection.kind === "processor" ? activeSelection.index + 1 : authoring.processors?.length ?? 0
-        updateDraft(addPipelineProcessor(authoring, config, index)); setSelectedStep({ kind: "processor", index }); setSelectedSteps([{ kind: "processor", index }])
+      if (option.kind === "input" || option.kind === "processor" || option.kind === "output") {
+        const config = await createConnectComponentConfig({ data: { kind: option.kind, name: option.component.name } })
+        if (option.kind === "processor") {
+          const index = activeSelection.kind === "processor" ? activeSelection.index + 1 : authoring.processors?.length ?? 0
+          updateDraft(addPipelineProcessor(authoring, config, index)); setSelectedStep({ kind: "processor", index }); setSelectedSteps([{ kind: "processor", index }])
+        } else {
+          updateDraft(updatePipelineAuthoring(authoring, { kind: option.kind }, config)); setSelectedStep({ kind: option.kind }); setSelectedSteps([{ kind: option.kind }])
+        }
+        setInspectorMode("friendly")
       } else {
-        updateDraft(updatePipelineAuthoring(authoring, { kind: option.kind }, config)); setSelectedStep({ kind: option.kind }); setSelectedSteps([{ kind: option.kind }])
+        const native = authoringToConnectConfig(authoring)
+        const name = option.component.name
+        const component = { [name]: {} } as JsonObject
+        if (option.kind === "buffer") {
+          native.buffer = component
+          updateDraft(replacePipelineAuthoringConfig(authoring, native))
+          setSelectedStep({ kind: "buffer" }); setSelectedSteps([{ kind: "buffer" }])
+          setWorkspaceView("graph")
+        } else {
+          throw new Error("This component is a Connect service resource, not a stream component. Stream resources are managed through the native resources API and are not embedded in stream YAML.")
+        }
       }
-      setInspectorMode("friendly"); setEditing(false)
+      setInspectorMode("friendly"); setEditing(false); setInspectorOpen(true)
     } catch (value) { setError(value instanceof Error ? value.message : "Redpanda Connect component generation failed") }
   }
 
@@ -555,8 +571,12 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
       <ComponentLibrary open={libraryOpen} components={components} query={libraryQuery} onQueryChange={setLibraryQuery} onOpenCommand={openCommand} onChoose={(component, kind) => void insertComponent({ component, kind })} />
       <main className="workspace-canvas-column">
         <div className="workspace-canvas-toolbar">
-          <div><span className="eyebrow">{workspaceContext ? "Deep work" : "Workspace"}</span><strong>{workspaceContext ? workspaceContext[0].toUpperCase() + workspaceContext.slice(1) : "Stream topology"}</strong></div>
+          <div><span className="eyebrow">{workspaceContext ? "Deep work" : "Workspace"}</span><strong>{workspaceContext ? workspaceContext[0].toUpperCase() + workspaceContext.slice(1) : workspaceView === "source" ? "Native configuration" : "Stream topology"}</strong></div>
           {!workspaceContext && <div className="workspace-canvas-toolbar-actions">
+            <div className="workspace-view-switch" role="tablist" aria-label="Workspace view">
+              <button type="button" role="tab" aria-selected={workspaceView === "graph"} className={workspaceView === "graph" ? "active" : ""} onClick={() => setWorkspaceView("graph")}>Graph</button>
+              <button type="button" role="tab" aria-selected={workspaceView === "source"} className={workspaceView === "source" ? "active" : ""} onClick={() => { setDraftText(stringify(authoringToConnectConfig(authoring), { lineWidth: 120 })); setWorkspaceView("source") }}>Source</button>
+            </div>
             <button type="button" className="workspace-toolbar-button" onClick={() => runCommand("toggle-buffer")}>{authoring.buffer ? "Remove buffer" : "Add buffer"}</button>
             <button type="button" className="workspace-toolbar-button" onClick={() => runCommand("add-processor")}><Icon name="plus" />Processor</button>
             {selectedSteps.length > 0 && <button type="button" className="workspace-toolbar-button" onClick={() => runCommand("duplicate")}>Duplicate</button>}
@@ -583,7 +603,11 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
             connectReady={liveConnectReady}
             onValidate={() => void validateWithConnect()}
             onClose={() => { setWorkspaceContext(null); setInspectorOpen(true) }}
-          /> : <>
+          /> : workspaceView === "source" ? <section className="workspace-native-source" aria-label="Native Redpanda Connect configuration">
+            <header><div><span className="eyebrow">Redpanda Connect</span><strong>Full native stream configuration</strong><small>Use the full Connect configuration model here: branches, switches, brokers, fan-out, nested processors and every stream-level option.</small></div><div><button className="button button-secondary" type="button" onClick={() => setDraftText(stringify(authoringToConnectConfig(authoring), { lineWidth: 120 }))}>Reset editor</button><button className="button button-primary" type="button" onClick={applyRaw}>Apply source</button></div></header>
+            <textarea className="config-editor config-editor-tall" aria-label="Full native Connect configuration" value={draftText || stringify(authoringToConnectConfig(authoring), { lineWidth: 120 })} onChange={(event) => setDraftText(event.target.value)} spellCheck={false} />
+            <footer><span>Native YAML ? validated by the installed Connect binary</span><button className="button button-secondary" type="button" onClick={() => void validateWithConnect()}>Validate with Connect</button></footer>
+          </section> : <>
             <PipelineCanvas
               key={selected.id}
               pipelineId={selected.id}

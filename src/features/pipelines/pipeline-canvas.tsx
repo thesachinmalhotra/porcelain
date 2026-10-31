@@ -388,16 +388,24 @@ type ComponentLibraryProps = {
   query: string
   onQueryChange: (query: string) => void
   onOpenCommand: () => void
-  onChoose: (component: ConnectComponentCapability, kind: Exclude<WorkspaceComponentKind, "buffer">) => void
+  onChoose: (component: ConnectComponentCapability, kind: import("../../runtime/connect/capabilities.server").ConnectComponentKind) => void
   open?: boolean
 }
-const libraryKinds: Array<Exclude<WorkspaceComponentKind, "buffer">> = ["input", "processor", "output"]
+const libraryKinds: Array<import("../../runtime/connect/capabilities.server").ConnectComponentKind> = ["input", "buffer", "processor", "output"]
+
+function libraryIcon(kind: import("../../runtime/connect/capabilities.server").ConnectComponentKind): IconName {
+  if (kind === "input") return "database"
+  if (kind === "output") return "arrow"
+  if (kind === "buffer" || kind === "cache") return "grid"
+  if (kind === "metric" || kind === "tracer" || kind === "rate_limit") return "pulse"
+  return "layers"
+}
 
 export function ComponentLibrary({ components, query, onQueryChange, onOpenCommand, onChoose, open = true }: ComponentLibraryProps) {
   const normalized = query.trim().toLowerCase()
   const groups = libraryKinds.map((kind) => ({
     kind,
-    items: components.filter((component) => component.kinds.includes(kind)).filter((component) => !normalized || component.name.toLowerCase().includes(normalized)).slice(0, normalized ? 40 : 12),
+    items: components.filter((component) => component.kinds.includes(kind)).filter((component) => !normalized || component.name.toLowerCase().includes(normalized)),
   })).filter((group) => group.items.length > 0)
 
   return <aside className={"workspace-library" + (open ? " is-open" : " is-closed")} aria-label="Connect component library" aria-hidden={!open} inert={!open}>
@@ -408,7 +416,7 @@ export function ComponentLibrary({ components, query, onQueryChange, onOpenComma
       {groups.map((group) => <section key={group.kind} className="workspace-library-group">
         <div className="workspace-library-group-title"><span>{group.kind}</span><span>{group.items.length}{normalized ? "" : "+"}</span></div>
         {group.items.map((component) => <button className="workspace-library-item" type="button" key={group.kind + ":" + component.name} onClick={() => onChoose(component, group.kind)}>
-          <span className="workspace-library-item-icon"><Icon name={iconFor(group.kind)} /></span><span className="workspace-library-item-copy"><strong>{component.name}</strong>{component.status && <small>{component.status}</small>}</span><Icon name="arrow" />
+          <span className="workspace-library-item-icon"><Icon name={libraryIcon(group.kind)} /></span><span className="workspace-library-item-copy"><strong>{component.name}</strong>{component.status && <small>{component.status}</small>}</span><Icon name="arrow" />
         </button>)}
       </section>)}
       {!groups.length && <div className="workspace-library-empty">No installed Connect components match.</div>}
