@@ -19,6 +19,7 @@ import { Route as RuntimeRouteImport } from './routes/runtime'
 import { Route as SchemasRouteImport } from './routes/schemas'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StreamsRouteImport } from './routes/streams'
+import { Route as ApiMcpRouteImport } from './routes/api.mcp'
 import { Route as PipelinesIndexRouteImport } from './routes/pipelines/index'
 import { Route as PipelinesPipelineIdRouteImport } from './routes/pipelines/$pipelineId'
 
@@ -72,6 +73,11 @@ const StreamsRoute = StreamsRouteImport.update({
   path: '/streams',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpRoute = ApiMcpRouteImport.update({
+  id: '/api/mcp',
+  path: '/api/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PipelinesIndexRoute = PipelinesIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/schemas': typeof SchemasRoute
   '/settings': typeof SettingsRoute
   '/streams': typeof StreamsRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/pipelines/$pipelineId': typeof PipelinesPipelineIdRoute
   '/pipelines/': typeof PipelinesIndexRoute
 }
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/schemas': typeof SchemasRoute
   '/settings': typeof SettingsRoute
   '/streams': typeof StreamsRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/pipelines/$pipelineId': typeof PipelinesPipelineIdRoute
   '/pipelines': typeof PipelinesIndexRoute
 }
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/schemas': typeof SchemasRoute
   '/settings': typeof SettingsRoute
   '/streams': typeof StreamsRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/pipelines/$pipelineId': typeof PipelinesPipelineIdRoute
   '/pipelines/': typeof PipelinesIndexRoute
 }
@@ -138,6 +147,7 @@ export interface FileRouteTypes {
     | '/schemas'
     | '/settings'
     | '/streams'
+    | '/api/mcp'
     | '/pipelines/$pipelineId'
     | '/pipelines/'
   fileRoutesByTo: FileRoutesByTo
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/schemas'
     | '/settings'
     | '/streams'
+    | '/api/mcp'
     | '/pipelines/$pipelineId'
     | '/pipelines'
   id:
@@ -165,6 +176,7 @@ export interface FileRouteTypes {
     | '/schemas'
     | '/settings'
     | '/streams'
+    | '/api/mcp'
     | '/pipelines/$pipelineId'
     | '/pipelines/'
   fileRoutesById: FileRoutesById
@@ -180,6 +192,7 @@ export interface RootRouteChildren {
   SchemasRoute: typeof SchemasRoute
   SettingsRoute: typeof SettingsRoute
   StreamsRoute: typeof StreamsRoute
+  ApiMcpRoute: typeof ApiMcpRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -254,6 +267,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StreamsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp': {
+      id: '/api/mcp'
+      path: '/api/mcp'
+      fullPath: '/api/mcp'
+      preLoaderRoute: typeof ApiMcpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pipelines/': {
       id: '/pipelines/'
       path: '/'
@@ -296,6 +316,7 @@ const rootRouteChildren: RootRouteChildren = {
   SchemasRoute: SchemasRoute,
   SettingsRoute: SettingsRoute,
   StreamsRoute: StreamsRoute,
+  ApiMcpRoute: ApiMcpRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

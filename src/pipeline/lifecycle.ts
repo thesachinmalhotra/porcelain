@@ -85,6 +85,9 @@ export function createPipelineLifecycle({ store, client, activity }: PipelineLif
       if (!existing) throw new Error("Pipeline not found: " + id)
 
       const connectStreamId = existing.connectStreamId ?? existing.id
+      const previousRevision = await store.getRevision(existing.desiredRevisionId)
+      if (!previousRevision) throw new Error("The current desired revision is missing: " + existing.desiredRevisionId)
+
       const exists = await streamExists(connectStreamId)
       let operation: "created" | "updated"
       if (exists) {
@@ -101,7 +104,24 @@ export function createPipelineLifecycle({ store, client, activity }: PipelineLif
         operation = "created"
       }
 
-      const pipeline = await store.updateWithRevision(id, update)
+      let pipeline: PipelineDefinition
+      try {
+        pipeline = await store.updateWithRevision(id, update)
+      } catch (persistenceError) {
+        try {
+          if (operation === "updated") await client.updateStream(connectStreamId, previousRevision.spec)
+          else await client.deleteStream(connectStreamId)
+        } catch (compensationError) {
+          if (!(operation === "created" && compensationError instanceof Error && "status" in compensationError && compensationError.status === 404)) {
+            throw new AggregateError(
+              [persistenceError, compensationError],
+              "Pipeline persistence failed and the Connect runtime could not be restored to the previous desired revision: " + connectStreamId,
+              { cause: persistenceError },
+            )
+          }
+        }
+        throw persistenceError
+      }
       await activity?.append({
         type: "pipeline.updated",
         pipelineId: pipeline.id,

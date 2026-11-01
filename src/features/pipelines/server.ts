@@ -178,6 +178,20 @@ export const getPipelineWorkspace = createServerFn({ method: "GET" }).handler(as
   }),
 )
 
+export const getAgentPipelineDraft = createServerFn({ method: "GET" })
+  .validator((input: unknown) => {
+    if (!isObject(input) || typeof input.pipelineId !== "string" || !input.pipelineId.trim()) throw new Error("Pipeline id is required")
+    return { pipelineId: input.pipelineId.trim() }
+  })
+  .handler(async ({ data }) => (await import("../../runtime/connect/agent-draft-store.server")).createAgentDraftStore().get(data.pipelineId))
+
+export const discardAgentPipelineDraft = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    if (!isObject(input) || typeof input.pipelineId !== "string" || !input.pipelineId.trim()) throw new Error("Pipeline id is required")
+    return { pipelineId: input.pipelineId.trim() }
+  })
+  .handler(async ({ data }) => (await import("../../runtime/connect/agent-draft-store.server")).createAgentDraftStore().discard(data.pipelineId))
+
 function validateId(input: unknown): string {
   if (!isObject(input) || typeof input.id !== "string" || input.id.trim() === "") {
     throw new Error("Pipeline id must be a non-empty string")

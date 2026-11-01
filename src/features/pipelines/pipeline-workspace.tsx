@@ -4,7 +4,7 @@ import { parse, stringify } from "yaml"
 import type { JsonObject, PipelineAuthoring, PipelineAuthoringComponent } from "../../pipeline/authoring"
 import { addPipelineProcessor, authoringToConnectConfig, movePipelineProcessor, projectPipelineAuthoring, removePipelineProcessor, replacePipelineAuthoringConfig, setPipelineAuthoringBuffer, updatePipelineAuthoring } from "../../pipeline/authoring"
 import type { PipelineWorkspacePipeline } from "../../pipeline/pipeline"
-import { createAuthoredPipelineServer, deletePipeline, publishAuthoredPipelineServer, validateAuthoredPipelineServer } from "./server"
+import { createAuthoredPipelineServer, deletePipeline, discardAgentPipelineDraft, getAgentPipelineDraft, publishAuthoredPipelineServer, validateAuthoredPipelineServer } from "./server"
 import { getPipelineRuntime } from "./runtime-server"
 import { connectPipelineRuntimeSummary } from "../../runtime/connect/stats"
 import { Icon } from "../../components/app-shell"
@@ -117,6 +117,10 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
   const [draftText, setDraftText] = useState("")
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [agentDraftLabel, setAgentDraftLabel] = useState<string | null>(null)
+  const agentDraftSyncRef = useRef<Record<string, { version: number; config: JsonObject }>>({})
+  const draftsRef = useRef(drafts)
+  draftsRef.current = drafts
   const [showCreate, setShowCreate] = useState(false)
   const [newId, setNewId] = useState("")
   const [newName, setNewName] = useState("")
@@ -161,6 +165,35 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
   }, [selectedId, pipelines, initialPipelineId])
   const selected = pipelines.find((pipeline) => pipeline.id === selectedId) ?? pipelines[0]
   const authoring = selected ? drafts[selected.id] ?? selected.authoring : undefined
+  useEffect(() => {
+    if (!selected) return
+    let cancelled = false
+    const refreshAgentDraft = async () => {
+      try {
+        const remote = await getAgentPipelineDraft({ data: { pipelineId: selected.id } })
+        if (cancelled || !remote) return
+        const previouslyApplied = agentDraftSyncRef.current[selected.id]
+        if (remote.version <= (previouslyApplied?.version ?? 0)) return
+        const local = draftsRef.current[selected.id]
+        const localMatchesAgent = Boolean(local && previouslyApplied && JSON.stringify(authoringToConnectConfig(local)) === JSON.stringify(previouslyApplied.config))
+        const hasLocalEdits = Boolean(local && JSON.stringify(local) !== JSON.stringify(selected.authoring) && !localMatchesAgent)
+        if (hasLocalEdits) {
+          setAgentDraftLabel(`Agent draft v${remote.version} waiting ? local edits are unsaved`)
+          return
+        }
+        const next = replacePipelineAuthoringConfig(selected.authoring, remote.config)
+        agentDraftSyncRef.current[selected.id] = { version: remote.version, config: structuredClone(remote.config) }
+        setDrafts((current) => ({ ...current, [selected.id]: next }))
+        setHistoryByPipeline((current) => ({ ...current, [selected.id]: pushHistory(current[selected.id] ?? createHistory(selected.authoring), next) }))
+        setWorkspaceView("topology")
+        setAgentDraftLabel(`Agent draft v${remote.version} synced`)
+      } catch { /* The MCP draft store may not exist yet. */ }
+    }
+    void refreshAgentDraft()
+    const interval = window.setInterval(() => void refreshAgentDraft(), 1200)
+    return () => { cancelled = true; window.clearInterval(interval) }
+  }, [selected?.id, selected?.authoring])
+
   const steps = authoring ? stepsFor(authoring) : []
   const selectedStepId = selectedStep ? selectedKey(selectedStep) : null
   const step = selectedStepId ? steps.find((item) => item.id === selectedStepId) : undefined
@@ -461,12 +494,12 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
     updateDraft(movePipelineProcessor(authoring, activeSelection.index, target)); setSelectedStep({ kind: "processor", index: target }); setSelectedSteps([{ kind: "processor", index: target }])
   }
 
-  const discard = () => { setDrafts((current) => { const next = { ...current }; delete next[selected.id]; return next }); setHistoryByPipeline((current) => { const next = { ...current }; delete next[selected.id]; return next }); setValidation(null); setError(null); setEditing(false) }
+  const discard = () => { void discardAgentPipelineDraft({ data: { pipelineId: selected.id } }); delete agentDraftSyncRef.current[selected.id]; setAgentDraftLabel(null); setDrafts((current) => { const next = { ...current }; delete next[selected.id]; return next }); setHistoryByPipeline((current) => { const next = { ...current }; delete next[selected.id]; return next }); setValidation(null); setError(null); setEditing(false) }
   const publish = async () => {
     if (!dirty || !validation?.valid) return
     if (validation.message.includes("restart this stream") && !window.confirm("Publishing this change will restart the running Connect stream. Continue?")) return
     setSaving(true); setError(null)
-    try { await publishAuthoredPipelineServer({ data: { id: selected.id, authoring } }); setDrafts((current) => { const next = { ...current }; delete next[selected.id]; return next }); setHistoryByPipeline((current) => { const next = { ...current }; delete next[selected.id]; return next }); await router.invalidate({ sync: true }) }
+    try { await publishAuthoredPipelineServer({ data: { id: selected.id, authoring } }); await discardAgentPipelineDraft({ data: { pipelineId: selected.id } }); delete agentDraftSyncRef.current[selected.id]; setAgentDraftLabel(null); setDrafts((current) => { const next = { ...current }; delete next[selected.id]; return next }); setHistoryByPipeline((current) => { const next = { ...current }; delete next[selected.id]; return next }); await router.invalidate({ sync: true }) }
     catch (value) { const message = value instanceof Error ? value.message : "Publish failed"; setError(message); setValidation({ valid: false, message }) }
     finally { setSaving(false) }
   }
@@ -545,6 +578,7 @@ export function PipelineWorkspace({ connectReachable, connectReady, pipelines, c
         <span className="workspace-title-separator" /><h1>{selected.name}</h1>
         <span className={`status workspace-status ${statusClass}`}><span className="status-dot" />{statusLabel}</span>
         {dirty && <span className="draft-pill">Draft</span>}
+        {agentDraftLabel && <span className="draft-pill" title="Updated by an MCP-connected agent">{agentDraftLabel}</span>}
       </div>
       <div className="workspace-topbar-actions">
         <button className="workspace-command-topbar" type="button" onClick={openCommand} aria-label="Search or add Connect component">

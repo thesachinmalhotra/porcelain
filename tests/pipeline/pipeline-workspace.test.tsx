@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   invalidate: vi.fn().mockResolvedValue(undefined),
   component: vi.fn().mockImplementation(async ({ data }: { data: { kind: string; name: string } }) => data.kind === "processor" ? { mapping: "root = this" } : data.kind === "input" ? { stdin: {} } : { stdout: {} }),
   normalize: vi.fn().mockImplementation(async ({ data }: { data: { config: object } }) => data.config),
+  agentDraft: vi.fn().mockResolvedValue(null),
+  discardAgentDraft: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock("@tanstack/react-router", () => ({
@@ -26,6 +28,8 @@ vi.mock("../../src/features/pipelines/server", () => ({
   publishAuthoredPipelineServer: mocks.publish,
   createAuthoredPipelineServer: mocks.create,
   deletePipeline: vi.fn(),
+  getAgentPipelineDraft: mocks.agentDraft,
+  discardAgentPipelineDraft: mocks.discardAgentDraft,
 }))
 vi.mock("../../src/features/components/server", async () => {
   const actual = await vi.importActual<typeof import("../../src/features/components/server")>("../../src/features/components/server")
@@ -55,6 +59,23 @@ describe("PipelineWorkspace", () => {
     expect(screen.getByRole("complementary", { name: "Connect component library" })).toBeTruthy()
     expect(screen.getByRole("complementary", { name: "Inspector" })).toBeTruthy()
     await waitFor(() => expect(mocks.runtime).toHaveBeenCalled())
+  })
+
+  it("projects a newer MCP agent draft into the active canvas", async () => {
+    mocks.agentDraft.mockResolvedValueOnce({
+      pipelineId: "orders",
+      version: 2,
+      config: {
+        input: { generate: { interval: "1s" } },
+        pipeline: { processors: [{ mapping: "root = this" }, { mapping: "root.agent = true" }] },
+        output: { drop: {} },
+      },
+    })
+    renderWorkspace()
+    await waitFor(() => expect(screen.getByLabelText("Native Connect topology")).toBeTruthy())
+    expect(document.querySelectorAll(".native-topology-node")).toHaveLength(4)
+    expect(screen.getByText("Agent draft v2 synced")).toBeTruthy()
+    expect(screen.getByText("Unpublished changes")).toBeTruthy()
   })
 
   it("switches to the native topology projection without leaving the workspace", () => {

@@ -64,7 +64,17 @@ function createFakes() {
     updateStream: async (id: string, _config: typeof desiredConfig) => { calls.push("connect.update:" + id) },
     deleteStream: async (id: string) => { calls.push("connect.delete:" + id) },
   }
-  return { calls, store, client, setStored: (value: PipelineDefinition | null) => { stored = value } }
+  return { calls, store, client, setStored: (value: PipelineDefinition | null) => {
+    stored = value
+    if (value) revisions.set(value.desiredRevisionId, {
+      id: value.desiredRevisionId,
+      pipelineId: value.id,
+      version: 1,
+      spec: desiredConfig,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      checksum: "checksum-1",
+    })
+  } }
 }
 
 describe("createPipelineLifecycle", () => {
@@ -149,6 +159,69 @@ describe("pipeline publish lifecycle", () => {
       "store.updateWithRevision:orders",
     ])
   })
+  it("restores the previous Connect config when revision persistence fails after an update", async () => {
+    const { calls, store, client, setStored } = createFakes()
+    const existing = { id: "orders", name: "Orders", metadata: {}, desiredRevisionId: "revision-1", connectStreamId: "orders" }
+    setStored(existing)
+    const persistenceError = new Error("revision write failed")
+    store.updateWithRevision = async () => { calls.push("store.updateWithRevision:orders"); throw persistenceError }
+    client.updateStream = async (_id, config) => {
+      calls.push("connect.update:" + (config === desiredConfig ? "previous" : "draft"))
+    }
+    const lifecycle = createPipelineLifecycle({ store, client })
+
+    await expect(lifecycle.publishPipeline("orders", {
+      name: "Orders v2",
+      metadata: {},
+      desiredConfig: { input: { stdin: {} }, output: { drop: {} } },
+    })).rejects.toBe(persistenceError)
+
+    expect(calls).toEqual([
+      "store.get:orders",
+      "connect.update:draft",
+      "store.updateWithRevision:orders",
+      "connect.update:previous",
+    ])
+    await expect(store.get("orders")).resolves.toEqual(existing)
+  })
+
+  it("removes a recreated stream when revision persistence fails", async () => {
+    const { calls, store, client, setStored } = createFakes()
+    const existing = { id: "orders", name: "Orders", metadata: {}, desiredRevisionId: "revision-1", connectStreamId: "orders" }
+    setStored(existing)
+    client.getStream = async () => { calls.push("connect.get:orders"); throw Object.assign(new Error("missing"), { status: 404 }) }
+    client.createStream = async (id) => { calls.push("connect.create:" + id) }
+    store.updateWithRevision = async () => { calls.push("store.updateWithRevision:orders"); throw new Error("revision write failed") }
+    const lifecycle = createPipelineLifecycle({ store, client })
+
+    await expect(lifecycle.publishPipeline("orders", { name: "Orders v2", metadata: {}, desiredConfig: { input: { stdin: {} }, output: { drop: {} } } })).rejects.toThrow("revision write failed")
+    expect(calls).toEqual([
+      "store.get:orders",
+      "connect.get:orders",
+      "connect.create:orders",
+      "store.updateWithRevision:orders",
+      "connect.delete:orders",
+    ])
+    await expect(store.get("orders")).resolves.toEqual(existing)
+  })
+
+  it("surfaces persistence and runtime compensation failures together", async () => {
+    const { calls, store, client, setStored } = createFakes()
+    setStored({ id: "orders", name: "Orders", metadata: {}, desiredRevisionId: "revision-1", connectStreamId: "orders" })
+    const persistenceError = new Error("revision write failed")
+    const compensationError = new Error("runtime restore failed")
+    store.updateWithRevision = async () => { calls.push("store.updateWithRevision:orders"); throw persistenceError }
+    client.updateStream = async (_id, config) => {
+      calls.push("connect.update:" + (config === desiredConfig ? "previous" : "draft"))
+      if (config === desiredConfig) throw compensationError
+    }
+    const lifecycle = createPipelineLifecycle({ store, client })
+    const result = lifecycle.publishPipeline("orders", { name: "Orders v2", metadata: {}, desiredConfig: { input: { stdin: {} }, output: { drop: {} } } })
+
+    await expect(result).rejects.toMatchObject({ errors: [persistenceError, compensationError], cause: persistenceError })
+    expect(calls.at(-1)).toBe("connect.update:previous")
+  })
+
   it("propagates a non-404 stream lookup failure without mutating durable state", async () => {
     const { calls, store, client, setStored } = createFakes()
     const existing = { id: "orders", name: "Orders", metadata: {}, desiredRevisionId: "revision-1", connectStreamId: "orders" }
